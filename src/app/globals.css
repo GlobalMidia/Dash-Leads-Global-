@@ -839,6 +839,22 @@ td {
   gap: 5px;
 }
 
+.company-value {
+  display: inline-flex;
+  max-width: 190px;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: #56647b;
+  font-weight: 620;
+  text-overflow: ellipsis;
+}
+
+.company-value svg {
+  flex: 0 0 auto;
+  color: #8998ae;
+}
+
 .contact-stack a,
 .mobile-contact-row a {
   display: inline-flex;
@@ -1242,7 +1258,7 @@ td {
   }
 
   .table-scroller table {
-    min-width: 920px;
+    min-width: 1080px;
   }
 }
 
@@ -1451,6 +1467,14 @@ td {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+  }
+
+  .mobile-origin {
+    max-width: 105px;
+    overflow: hidden;
+    color: #697a91;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mobile-card-footer a {

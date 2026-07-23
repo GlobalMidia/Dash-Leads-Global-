@@ -53,6 +53,8 @@ export function normalizeRdContact(input: unknown): Lead | null {
     ? asRecord(root.contact)
     : root;
   const funnel = asRecord(contact.funnel);
+  const company = asRecord(contact.company);
+  const organization = asRecord(contact.organization);
   const email = stringValue(contact.email, root.email);
   const rdUuid = stringValue(contact.uuid, contact.id, root.uuid, root.id);
 
@@ -69,6 +71,12 @@ export function normalizeRdContact(input: unknown): Lead | null {
     id: stableId(rdUuid, email),
     rdUuid,
     name: stringValue(contact.name, contact.first_name, email),
+    company: stringValue(
+      company.name,
+      organization.name,
+      contact.company_name,
+      root.company_name,
+    ),
     email,
     phone: firstPhone(contact),
     origin: stringValue(

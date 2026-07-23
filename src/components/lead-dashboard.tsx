@@ -4,6 +4,7 @@ import {
   ArrowDownToLine,
   BarChart3,
   Bell,
+  Building2,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -483,9 +484,9 @@ export function LeadDashboard({
           <div className="filter-search">
             <Search size={17} />
             <input
-              aria-label="Buscar por nome, contato ou origem"
+              aria-label="Buscar por nome, empresa, contato ou origem"
               onChange={(event) => updateFilter("query", event.target.value)}
-              placeholder="Buscar lead, e-mail ou telefone"
+              placeholder="Buscar lead, empresa, e-mail ou telefone"
               value={filters.query}
             />
           </div>
@@ -671,6 +672,7 @@ export function LeadDashboard({
                   <thead>
                     <tr>
                       <th>Lead</th>
+                      <th>Empresa</th>
                       <th>Contato</th>
                       <th>Origem</th>
                       <th>Data de entrada</th>
@@ -688,6 +690,12 @@ export function LeadDashboard({
                               <small>ID {lead.id.slice(0, 8).toUpperCase()}</small>
                             </div>
                           </div>
+                        </td>
+                        <td>
+                          <span className="company-value">
+                            <Building2 size={13} />
+                            {lead.company || "Não informada"}
+                          </span>
                         </td>
                         <td>
                           <div className="contact-stack">
@@ -732,7 +740,7 @@ export function LeadDashboard({
                         <span className="lead-avatar">{initials(lead.name)}</span>
                         <div>
                           <strong>{lead.name}</strong>
-                          <small>{lead.origin}</small>
+                          <small>{lead.company || "Empresa não informada"}</small>
                         </div>
                       </div>
                       <StatusSelect
@@ -756,6 +764,7 @@ export function LeadDashboard({
                         <CalendarDays size={13} />
                         {formatDate(lead.enteredAt)}
                       </span>
+                      <span className="mobile-origin">{lead.origin}</span>
                       <a href={`mailto:${lead.email}`}>
                         Contatar
                         <ExternalLink size={13} />

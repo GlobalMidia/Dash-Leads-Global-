@@ -21,6 +21,17 @@ describe("lead metrics", () => {
     expect(result.map((lead) => lead.id)).toEqual(["demo-001"]);
   });
 
+  it("finds a lead by company name", () => {
+    const result = filterLeads(DEMO_LEADS, {
+      query: "Vértice Arquitetura",
+      origin: "all",
+      status: "all",
+      startDate: "",
+      endDate: "",
+    });
+    expect(result.map((lead) => lead.name)).toEqual(["Camila Ferreira"]);
+  });
+
   it("sorts origins by descending lead count", () => {
     const origins = groupByOrigin(DEMO_LEADS);
     expect(origins[0]).toEqual({ origin: "Google Ads", count: 4 });

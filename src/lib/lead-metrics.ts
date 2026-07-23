@@ -21,7 +21,7 @@ export function filterLeads(leads: Lead[], filters: DashboardFilters) {
     const enteredAt = new Date(lead.enteredAt);
     const matchesQuery =
       !normalizedQuery ||
-      [lead.name, lead.email, lead.phone, lead.origin].some((value) =>
+      [lead.name, lead.company, lead.email, lead.phone, lead.origin].some((value) =>
         value.toLocaleLowerCase("pt-BR").includes(normalizedQuery),
       );
 

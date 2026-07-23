@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS leads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   rd_uuid text NOT NULL UNIQUE,
   name text NOT NULL,
+  company text NOT NULL DEFAULT '',
   email text NOT NULL,
   phone text NOT NULL DEFAULT '',
   origin text NOT NULL DEFAULT 'RD Station',
@@ -12,6 +13,8 @@ CREATE TABLE IF NOT EXISTS leads (
     CHECK (status IN ('pending', 'attended', 'qualified', 'disqualified', 'closed')),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS leads_entered_at_idx ON leads (entered_at DESC);
 CREATE INDEX IF NOT EXISTS leads_status_idx ON leads (status);

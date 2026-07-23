@@ -26,6 +26,7 @@ function mapRow(row: Record<string, unknown>): Lead {
     id: String(row.id),
     rdUuid: row.rd_uuid ? String(row.rd_uuid) : null,
     name: String(row.name),
+    company: row.company ? String(row.company) : "",
     email: String(row.email),
     phone: row.phone ? String(row.phone) : "",
     origin: row.origin ? String(row.origin) : "Não identificada",
@@ -42,7 +43,7 @@ export async function listLeads(): Promise<Lead[]> {
 
   const sql = getSql();
   const rows = await sql`
-    SELECT id, rd_uuid, name, email, phone, origin, entered_at, status, updated_at
+    SELECT id, rd_uuid, name, company, email, phone, origin, entered_at, status, updated_at
     FROM leads
     ORDER BY entered_at DESC
     LIMIT 2000
@@ -60,7 +61,7 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
     UPDATE leads
     SET status = ${status}, updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, rd_uuid, name, email, phone, origin, entered_at, status, updated_at
+    RETURNING id, rd_uuid, name, company, email, phone, origin, entered_at, status, updated_at
   `;
   return rows[0] ? mapRow(rows[0]) : null;
 }
@@ -78,6 +79,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
     const batch = validInputs.slice(index, index + 250).map((lead) => ({
       rd_uuid: lead.rdUuid,
       name: lead.name || lead.email,
+      company: lead.company || "",
       email: lead.email,
       phone: lead.phone || "",
       origin: lead.origin || "RD Station",
@@ -91,6 +93,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
         FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS item(
           rd_uuid text,
           name text,
+          company text,
           email text,
           phone text,
           origin text,
@@ -101,6 +104,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
       INSERT INTO leads (
         rd_uuid,
         name,
+        company,
         email,
         phone,
         origin,
@@ -111,6 +115,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
       SELECT
         rd_uuid,
         name,
+        company,
         email,
         phone,
         origin,
@@ -121,6 +126,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
       ON CONFLICT (rd_uuid)
       DO UPDATE SET
         name = EXCLUDED.name,
+        company = EXCLUDED.company,
         email = EXCLUDED.email,
         phone = EXCLUDED.phone,
         origin = EXCLUDED.origin,

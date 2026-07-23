@@ -12,6 +12,7 @@ export type Lead = {
   id: string;
   rdUuid: string | null;
   name: string;
+  company: string;
   email: string;
   phone: string;
   origin: string;

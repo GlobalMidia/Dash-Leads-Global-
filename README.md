@@ -1,7 +1,7 @@
 # Dashboard de Leads — Global Mídia
 
-Painel comercial em página única para acompanhar leads, contato, origem, data de
-entrada e qualificação. O projeto foi preparado para Next.js 16, Vercel,
+Painel comercial em página única para acompanhar leads, empresas, contatos,
+origem, data de entrada e qualificação. O projeto foi preparado para Next.js 16, Vercel,
 Postgres e RD Station Marketing.
 
 ## O que já está pronto
@@ -9,7 +9,7 @@ Postgres e RD Station Marketing.
 - visão geral com indicadores de leads, qualificados, fechados e pendentes;
 - gráfico de entradas e distribuição por origem;
 - busca e filtros por origem, status e período;
-- tabela responsiva com e-mail, telefone, origem e data de entrada;
+- tabela responsiva com empresa, e-mail, telefone, origem e data de entrada;
 - qualificação em `Pendente`, `Atendido`, `Qualificado`, `Desqualificado` e
   `Fechado`;
 - modo demonstração com dados totalmente fictícios;
