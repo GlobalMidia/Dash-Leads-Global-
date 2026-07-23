@@ -27,6 +27,8 @@ html {
 
 body {
   margin: 0;
+  min-width: 0;
+  overflow-x: clip;
   background:
     radial-gradient(circle at 80% 0%, rgb(47 125 244 / 5%), transparent 28rem),
     var(--background);
@@ -53,6 +55,8 @@ select:disabled {
 
 .dashboard-shell {
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .topbar {
@@ -278,7 +282,8 @@ select:disabled {
 }
 
 .dashboard-main {
-  width: min(1480px, calc(100% - 70px));
+  width: calc(100% - 70px);
+  min-width: 0;
   margin-left: 70px;
   padding: 104px 34px 34px;
 }
