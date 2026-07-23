@@ -28,6 +28,7 @@ html {
 body {
   margin: 0;
   min-width: 0;
+  overflow-x: hidden;
   overflow-x: clip;
   background:
     radial-gradient(circle at 80% 0%, rgb(47 125 244 / 5%), transparent 28rem),
@@ -56,6 +57,7 @@ select:disabled {
 .dashboard-shell {
   min-height: 100vh;
   min-width: 0;
+  overflow-x: hidden;
   overflow-x: clip;
 }
 
@@ -570,12 +572,15 @@ select:disabled {
 
 .analytics-grid {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(0, 1.75fr) minmax(310px, 0.85fr);
   gap: 14px;
   margin-top: 14px;
 }
 
 .panel {
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: #fff;
@@ -619,17 +624,17 @@ select:disabled {
 
 .chart-wrap {
   width: 100%;
-  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding-top: 5px;
 }
 
-.chart-wrap::-webkit-scrollbar {
-  height: 4px;
-}
-
-.chart-wrap::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: #dfe5ee;
+.lead-chart {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
 }
 
 .origin-content {
@@ -1545,7 +1550,7 @@ td {
   }
 
   .analytics-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .origin-content {

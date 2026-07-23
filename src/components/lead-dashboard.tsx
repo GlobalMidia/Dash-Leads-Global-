@@ -135,7 +135,7 @@ function LeadsChart({ leads }: { leads: Lead[] }) {
     <div className="chart-wrap">
       <svg
         aria-label="Evolução diária da entrada de leads"
-        className="h-auto w-full min-w-[560px]"
+        className="lead-chart"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
       >
