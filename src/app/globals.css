@@ -884,21 +884,40 @@ td {
   color: #8998ae;
 }
 
-.contact-stack a,
-.mobile-contact-row a {
+.contact-stack button,
+.mobile-contact-row button {
   display: inline-flex;
   max-width: 240px;
   align-items: center;
   gap: 6px;
   overflow: hidden;
+  border: 0;
   color: #6c788d;
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
   text-decoration: none;
   text-overflow: ellipsis;
 }
 
-.contact-stack a:hover,
-.mobile-contact-row a:hover {
+.contact-stack button:hover,
+.mobile-contact-row button:hover {
   color: var(--blue);
+}
+
+.copy-hint {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.contact-stack button:hover .copy-hint,
+.contact-stack button:focus-visible .copy-hint,
+.mobile-contact-row button:hover .copy-hint,
+.mobile-contact-row button:focus-visible .copy-hint,
+.details-grid button:hover .copy-hint,
+.details-grid button:focus-visible .copy-hint {
+  opacity: 0.75;
 }
 
 .origin-badge {
@@ -1210,7 +1229,7 @@ td {
   text-transform: uppercase;
 }
 
-.details-grid a,
+.details-grid button,
 .details-grid > div > strong {
   display: inline-flex;
   width: fit-content;
@@ -1218,7 +1237,10 @@ td {
   align-items: center;
   gap: 7px;
   overflow: hidden;
+  border: 0;
   color: #445168;
+  background: transparent;
+  padding: 0;
   font-size: 10px;
   font-weight: 650;
   text-decoration: none;
@@ -1226,7 +1248,7 @@ td {
   white-space: nowrap;
 }
 
-.details-grid a:hover {
+.details-grid button:hover {
   color: #2f7df4;
 }
 

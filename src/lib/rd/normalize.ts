@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { normalizeLeadOrigin } from "@/lib/lead-origin";
 import type { Lead } from "@/types/lead";
 
 type UnknownRecord = Record<string, unknown>;
@@ -79,12 +80,13 @@ export function normalizeRdContact(input: unknown): Lead | null {
     ),
     email,
     phone: firstPhone(contact),
-    origin: stringValue(
-      funnel.origin,
-      contact.traffic_source,
-      contact.source,
-      root.event_identifier,
-      "RD Station",
+    origin: normalizeLeadOrigin(
+      stringValue(
+        funnel.origin,
+        contact.traffic_source,
+        contact.source,
+        root.event_identifier,
+      ),
     ),
     enteredAt,
     status:

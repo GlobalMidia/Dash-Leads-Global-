@@ -34,6 +34,6 @@ describe("lead metrics", () => {
 
   it("sorts origins by descending lead count", () => {
     const origins = groupByOrigin(DEMO_LEADS);
-    expect(origins[0]).toEqual({ origin: "Google Ads", count: 4 });
+    expect(origins[0]).toEqual({ origin: "Google Ads", count: 5 });
   });
 });

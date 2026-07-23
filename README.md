@@ -10,6 +10,8 @@ Postgres e RD Station Marketing.
 - gráfico de entradas e distribuição por origem;
 - busca e filtros por origem, status e período;
 - tabela responsiva com empresa, e-mail, telefone, origem e data de entrada;
+- cópia de e-mail e telefone com um clique, sem abrir aplicativos externos;
+- origens padronizadas em Google Ads, Meta Ads, Orgânico e Recomendação;
 - detalhes do lead em modal, com observações de até 280 caracteres;
 - exportação CSV que respeita busca, período, origem e qualificação selecionados;
 - qualificação em `Pendente`, `Atendido`, `Qualificado`, `Desqualificado` e

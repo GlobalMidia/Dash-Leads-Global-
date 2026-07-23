@@ -9,7 +9,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
+  ClipboardCopy,
   FileDown,
   Filter,
   LayoutDashboard,
@@ -324,6 +324,28 @@ export function LeadDashboard({
   function openLeadDetails(lead: Lead) {
     setSelectedLeadId(lead.id);
     setNotesDraft(lead.notes);
+  }
+
+  async function copyContact(value: string, label: string) {
+    if (!value) {
+      setNotice(`${label} não informado.`);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice(`${label} copiado.`);
+    } catch {
+      const temporaryField = document.createElement("textarea");
+      temporaryField.value = value;
+      temporaryField.style.position = "fixed";
+      temporaryField.style.opacity = "0";
+      document.body.appendChild(temporaryField);
+      temporaryField.select();
+      const copied = document.execCommand("copy");
+      temporaryField.remove();
+      setNotice(copied ? `${label} copiado.` : `Não foi possível copiar ${label.toLowerCase()}.`);
+    }
   }
 
   function closeLeadDetails() {
@@ -818,15 +840,27 @@ export function LeadDashboard({
                         </td>
                         <td>
                           <div className="contact-stack">
-                            <a href={`mailto:${lead.email}`}>
+                            <button
+                              aria-label={`Copiar e-mail de ${lead.name}`}
+                              onClick={() => copyContact(lead.email, "E-mail")}
+                              title="Copiar e-mail"
+                              type="button"
+                            >
                               <Mail size={13} />
                               {lead.email}
-                            </a>
+                              <ClipboardCopy className="copy-hint" size={12} />
+                            </button>
                             {lead.phone && (
-                              <a href={`tel:${lead.phone.replace(/\D/g, "")}`}>
+                              <button
+                                aria-label={`Copiar telefone de ${lead.name}`}
+                                onClick={() => copyContact(lead.phone, "Telefone")}
+                                title="Copiar telefone"
+                                type="button"
+                              >
                                 <Phone size={13} />
                                 {lead.phone}
-                              </a>
+                                <ClipboardCopy className="copy-hint" size={12} />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -875,14 +909,22 @@ export function LeadDashboard({
                       />
                     </div>
                     <div className="mobile-contact-row">
-                      <a href={`mailto:${lead.email}`}>
+                      <button
+                        onClick={() => copyContact(lead.email, "E-mail")}
+                        type="button"
+                      >
                         <Mail size={14} />
                         {lead.email}
-                      </a>
-                      <a href={`tel:${lead.phone.replace(/\D/g, "")}`}>
+                        <ClipboardCopy className="copy-hint" size={12} />
+                      </button>
+                      <button
+                        onClick={() => copyContact(lead.phone, "Telefone")}
+                        type="button"
+                      >
                         <Phone size={14} />
                         {lead.phone}
-                      </a>
+                        <ClipboardCopy className="copy-hint" size={12} />
+                      </button>
                     </div>
                     <div className="mobile-card-footer">
                       <span>
@@ -890,10 +932,6 @@ export function LeadDashboard({
                         {formatDate(lead.enteredAt)}
                       </span>
                       <span className="mobile-origin">{lead.origin}</span>
-                      <a href={`mailto:${lead.email}`}>
-                        Contatar
-                        <ExternalLink size={13} />
-                      </a>
                     </div>
                   </article>
                 ))}
@@ -993,17 +1031,27 @@ export function LeadDashboard({
             <div className="details-grid">
               <div>
                 <span>E-mail</span>
-                <a href={`mailto:${selectedLead.email}`}>
+                <button
+                  onClick={() => copyContact(selectedLead.email, "E-mail")}
+                  title="Copiar e-mail"
+                  type="button"
+                >
                   <Mail size={14} />
                   {selectedLead.email}
-                </a>
+                  <ClipboardCopy className="copy-hint" size={12} />
+                </button>
               </div>
               <div>
                 <span>Telefone</span>
-                <a href={`tel:${selectedLead.phone.replace(/\D/g, "")}`}>
+                <button
+                  onClick={() => copyContact(selectedLead.phone, "Telefone")}
+                  title="Copiar telefone"
+                  type="button"
+                >
                   <Phone size={14} />
                   {selectedLead.phone || "Não informado"}
-                </a>
+                  <ClipboardCopy className="copy-hint" size={12} />
+                </button>
               </div>
               <div>
                 <span>Origem</span>

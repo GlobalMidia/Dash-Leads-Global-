@@ -2,6 +2,7 @@ import "server-only";
 
 import { neon } from "@neondatabase/serverless";
 import { DEMO_LEADS } from "@/lib/demo-data";
+import { normalizeLeadOrigin } from "@/lib/lead-origin";
 import type { Lead, LeadStatus } from "@/types/lead";
 
 type LeadInput = Omit<Lead, "id" | "updatedAt"> & {
@@ -29,7 +30,7 @@ function mapRow(row: Record<string, unknown>): Lead {
     company: row.company ? String(row.company) : "",
     email: String(row.email),
     phone: row.phone ? String(row.phone) : "",
-    origin: row.origin ? String(row.origin) : "Não identificada",
+    origin: normalizeLeadOrigin(row.origin ? String(row.origin) : ""),
     enteredAt: new Date(String(row.entered_at)).toISOString(),
     status: String(row.status) as LeadStatus,
     notes: row.notes ? String(row.notes) : "",
@@ -98,7 +99,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
       company: lead.company || "",
       email: lead.email,
       phone: lead.phone || "",
-      origin: lead.origin || "RD Station",
+      origin: normalizeLeadOrigin(lead.origin),
       entered_at: lead.enteredAt,
       status: lead.status,
     }));
