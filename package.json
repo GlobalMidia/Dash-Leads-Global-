@@ -11,8 +11,8 @@
     "check": "npm run lint && npm run test && npm run build"
   },
   "overrides": {
-    "postcss": "8.5.10",
-    "sharp": "0.35.0"
+    "postcss": "8.5.22",
+    "sharp": "0.35.3"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

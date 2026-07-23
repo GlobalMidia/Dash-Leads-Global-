@@ -32,6 +32,7 @@ function mapRow(row: Record<string, unknown>): Lead {
     origin: row.origin ? String(row.origin) : "Não identificada",
     enteredAt: new Date(String(row.entered_at)).toISOString(),
     status: String(row.status) as LeadStatus,
+    notes: row.notes ? String(row.notes) : "",
     updatedAt: new Date(String(row.updated_at)).toISOString(),
   };
 }
@@ -43,7 +44,7 @@ export async function listLeads(): Promise<Lead[]> {
 
   const sql = getSql();
   const rows = await sql`
-    SELECT id, rd_uuid, name, company, email, phone, origin, entered_at, status, updated_at
+    SELECT id, rd_uuid, name, company, email, phone, origin, entered_at, status, notes, updated_at
     FROM leads
     ORDER BY entered_at DESC
     LIMIT 2000
@@ -61,7 +62,22 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
     UPDATE leads
     SET status = ${status}, updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, rd_uuid, name, company, email, phone, origin, entered_at, status, updated_at
+    RETURNING id, rd_uuid, name, company, email, phone, origin, entered_at, status, notes, updated_at
+  `;
+  return rows[0] ? mapRow(rows[0]) : null;
+}
+
+export async function updateLeadNotes(id: string, notes: string) {
+  if (!isLiveMode()) {
+    throw new Error("A demonstração não persiste alterações.");
+  }
+
+  const sql = getSql();
+  const rows = await sql`
+    UPDATE leads
+    SET notes = ${notes}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, rd_uuid, name, company, email, phone, origin, entered_at, status, notes, updated_at
   `;
   return rows[0] ? mapRow(rows[0]) : null;
 }

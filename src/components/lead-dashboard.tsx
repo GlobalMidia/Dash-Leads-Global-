@@ -10,11 +10,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FileDown,
   Filter,
   LayoutDashboard,
   LogOut,
   Mail,
   Menu,
+  MessageSquareText,
   Phone,
   RefreshCw,
   Search,
@@ -25,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { leadsToCsv } from "@/lib/export-leads";
 import {
   filterLeads,
   groupByDay,
@@ -259,6 +262,9 @@ export function LeadDashboard({
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const origins = useMemo(
     () => [...new Set(leads.map((lead) => lead.origin))].sort(),
@@ -270,6 +276,10 @@ export function LeadDashboard({
   );
   const metrics = useMemo(() => summarizeLeads(filteredLeads), [filteredLeads]);
   const originData = useMemo(() => groupByOrigin(filteredLeads), [filteredLeads]);
+  const selectedLead = useMemo(
+    () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
+    [leads, selectedLeadId],
+  );
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
   const paginatedLeads = filteredLeads.slice(
     (page - 1) * PAGE_SIZE,
@@ -282,6 +292,22 @@ export function LeadDashboard({
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  useEffect(() => {
+    if (!selectedLead) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedLeadId(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedLead]);
+
   function updateFilter<Key extends keyof DashboardFilters>(
     key: Key,
     value: DashboardFilters[Key],
@@ -293,6 +319,84 @@ export function LeadDashboard({
   function resetFilters() {
     setPage(1);
     setFilters(DEFAULT_FILTERS);
+  }
+
+  function openLeadDetails(lead: Lead) {
+    setSelectedLeadId(lead.id);
+    setNotesDraft(lead.notes);
+  }
+
+  function closeLeadDetails() {
+    if (!savingNotes) setSelectedLeadId(null);
+  }
+
+  async function handleSaveNotes() {
+    if (!selectedLead) return;
+
+    const before = leads;
+    const notes = notesDraft.trim();
+    setLeads((current) =>
+      current.map((lead) =>
+        lead.id === selectedLead.id
+          ? { ...lead, notes, updatedAt: new Date().toISOString() }
+          : lead,
+      ),
+    );
+
+    if (mode === "demo") {
+      setNotice("Modo demonstração: observação salva apenas nesta prévia.");
+      setSelectedLeadId(null);
+      return;
+    }
+
+    setSavingNotes(true);
+    try {
+      const response = await fetch(
+        `/api/leads/${encodeURIComponent(selectedLead.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes }),
+        },
+      );
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Falha ao salvar a observação.");
+      }
+      setNotice("Observação salva.");
+      setSelectedLeadId(null);
+    } catch (error) {
+      setLeads(before);
+      setNotice(
+        error instanceof Error ? error.message : "Falha ao salvar a observação.",
+      );
+    } finally {
+      setSavingNotes(false);
+    }
+  }
+
+  function handleExport() {
+    if (!filteredLeads.length) {
+      setNotice("Não há leads no filtro atual para exportar.");
+      return;
+    }
+
+    const blob = new Blob([leadsToCsv(filteredLeads)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leads-global-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setNotice(
+      `${filteredLeads.length} ${
+        filteredLeads.length === 1 ? "lead exportado" : "leads exportados"
+      } com os filtros atuais.`,
+    );
   }
 
   async function handleStatusChange(id: string, status: LeadStatus) {
@@ -448,6 +552,15 @@ export function LeadDashboard({
             >
               <Filter size={17} />
               Filtros
+            </button>
+            <button
+              className="export-button"
+              disabled={!filteredLeads.length}
+              onClick={handleExport}
+              type="button"
+            >
+              <FileDown size={17} />
+              Exportar
             </button>
             <button
               className="sync-button"
@@ -686,7 +799,13 @@ export function LeadDashboard({
                           <div className="lead-identity">
                             <span className="lead-avatar">{initials(lead.name)}</span>
                             <div>
-                              <strong>{lead.name}</strong>
+                              <button
+                                className="lead-name-button"
+                                onClick={() => openLeadDetails(lead)}
+                                type="button"
+                              >
+                                {lead.name}
+                              </button>
                               <small>ID {lead.id.slice(0, 8).toUpperCase()}</small>
                             </div>
                           </div>
@@ -739,7 +858,13 @@ export function LeadDashboard({
                       <div className="lead-identity">
                         <span className="lead-avatar">{initials(lead.name)}</span>
                         <div>
-                          <strong>{lead.name}</strong>
+                          <button
+                            className="lead-name-button"
+                            onClick={() => openLeadDetails(lead)}
+                            type="button"
+                          >
+                            {lead.name}
+                          </button>
                           <small>{lead.company || "Empresa não informada"}</small>
                         </div>
                       </div>
@@ -830,6 +955,122 @@ export function LeadDashboard({
           onClick={() => setFiltersOpen(false)}
           type="button"
         />
+      )}
+
+      {selectedLead && (
+        <div
+          className="details-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeLeadDetails();
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="lead-details-title"
+            aria-modal="true"
+            className="details-modal"
+            role="dialog"
+          >
+            <header className="details-header">
+              <div className="details-person">
+                <span className="details-avatar">{initials(selectedLead.name)}</span>
+                <div>
+                  <p>DETALHES DO LEAD</p>
+                  <h2 id="lead-details-title">{selectedLead.name}</h2>
+                  <span>{selectedLead.company || "Empresa não informada"}</span>
+                </div>
+              </div>
+              <button
+                aria-label="Fechar detalhes"
+                disabled={savingNotes}
+                onClick={closeLeadDetails}
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="details-grid">
+              <div>
+                <span>E-mail</span>
+                <a href={`mailto:${selectedLead.email}`}>
+                  <Mail size={14} />
+                  {selectedLead.email}
+                </a>
+              </div>
+              <div>
+                <span>Telefone</span>
+                <a href={`tel:${selectedLead.phone.replace(/\D/g, "")}`}>
+                  <Phone size={14} />
+                  {selectedLead.phone || "Não informado"}
+                </a>
+              </div>
+              <div>
+                <span>Origem</span>
+                <strong>{selectedLead.origin}</strong>
+              </div>
+              <div>
+                <span>Data de entrada</span>
+                <strong>{formatDate(selectedLead.enteredAt)}</strong>
+              </div>
+              <div className="details-status-row">
+                <span>Qualificação</span>
+                <strong
+                  style={{
+                    color: STATUS_COLORS[selectedLead.status],
+                    backgroundColor: `${STATUS_COLORS[selectedLead.status]}12`,
+                  }}
+                >
+                  <i
+                    style={{ backgroundColor: STATUS_COLORS[selectedLead.status] }}
+                  />
+                  {STATUS_LABELS[selectedLead.status]}
+                </strong>
+              </div>
+              <div>
+                <span>Última atualização</span>
+                <strong>{formatDate(selectedLead.updatedAt)}</strong>
+              </div>
+            </div>
+
+            <label className="notes-field">
+              <span>
+                <span>
+                  <MessageSquareText size={15} />
+                  Observações
+                </span>
+                <small>{notesDraft.length}/280</small>
+              </span>
+              <textarea
+                autoFocus
+                maxLength={280}
+                onChange={(event) => setNotesDraft(event.target.value)}
+                placeholder="Adicione uma observação breve sobre este lead..."
+                rows={4}
+                value={notesDraft}
+              />
+            </label>
+
+            <footer className="details-footer">
+              <button
+                className="details-cancel"
+                disabled={savingNotes}
+                onClick={closeLeadDetails}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="details-save"
+                disabled={savingNotes}
+                onClick={handleSaveNotes}
+                type="button"
+              >
+                {savingNotes ? "Salvando..." : "Salvar observação"}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
 
       {notice && (

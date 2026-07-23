@@ -11,10 +11,12 @@ CREATE TABLE IF NOT EXISTS leads (
   entered_at timestamptz NOT NULL,
   status text NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'attended', 'qualified', 'disqualified', 'closed')),
+  notes varchar(280) NOT NULL DEFAULT '',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAULT '';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes varchar(280) NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS leads_entered_at_idx ON leads (entered_at DESC);
 CREATE INDEX IF NOT EXISTS leads_status_idx ON leads (status);

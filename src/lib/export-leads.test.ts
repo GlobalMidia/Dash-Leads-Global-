@@ -1,0 +1,25 @@
+import { describe, expect, it } from "vitest";
+import { DEMO_LEADS } from "@/lib/demo-data";
+import { leadsToCsv } from "@/lib/export-leads";
+
+describe("leads CSV export", () => {
+  it("exports the supplied filtered leads with company and notes", () => {
+    const csv = leadsToCsv([DEMO_LEADS[0]]);
+
+    expect(csv).toContain('"Empresa"');
+    expect(csv).toContain('"Norte Engenharia"');
+    expect(csv).toContain('"Solicitou uma proposta para duas unidades."');
+    expect(csv).not.toContain("Ricardo Almeida");
+  });
+
+  it("escapes quotes and line breaks", () => {
+    const csv = leadsToCsv([
+      {
+        ...DEMO_LEADS[0],
+        notes: 'Retornar com "proposta"\nna sexta.',
+      },
+    ]);
+
+    expect(csv).toContain('"Retornar com ""proposta"" na sexta."');
+  });
+});

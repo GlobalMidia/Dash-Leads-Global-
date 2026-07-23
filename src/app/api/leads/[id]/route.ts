@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isDashboardAuthorized } from "@/server/dashboard-auth";
-import { updateLeadStatus } from "@/server/lead-repository";
+import {
+  updateLeadNotes,
+  updateLeadStatus,
+} from "@/server/lead-repository";
 import { LEAD_STATUSES } from "@/types/lead";
 
-const schema = z.object({ status: z.enum(LEAD_STATUSES) });
+const schema = z
+  .object({
+    status: z.enum(LEAD_STATUSES).optional(),
+    notes: z.string().trim().max(280).optional(),
+  })
+  .refine((value) => value.status !== undefined || value.notes !== undefined);
 
 export async function PATCH(
   request: Request,
@@ -16,11 +24,17 @@ export async function PATCH(
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Status inválido." }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }
 
   try {
-    const lead = await updateLeadStatus((await params).id, parsed.data.status);
+    const id = (await params).id;
+    let lead = parsed.data.status
+      ? await updateLeadStatus(id, parsed.data.status)
+      : null;
+    if (parsed.data.notes !== undefined) {
+      lead = await updateLeadNotes(id, parsed.data.notes);
+    }
     if (!lead) {
       return NextResponse.json(
         { error: "Lead não encontrado." },

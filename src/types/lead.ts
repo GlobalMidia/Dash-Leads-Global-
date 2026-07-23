@@ -18,6 +18,7 @@ export type Lead = {
   origin: string;
   enteredAt: string;
   status: LeadStatus;
+  notes: string;
   updatedAt: string;
 };
 

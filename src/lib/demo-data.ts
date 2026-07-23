@@ -11,6 +11,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Google Ads",
     enteredAt: "2026-07-23T12:42:00.000Z",
     status: "qualified",
+    notes: "Solicitou uma proposta para duas unidades.",
     updatedAt: "2026-07-23T13:10:00.000Z",
   },
   {
@@ -23,6 +24,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Meta Ads",
     enteredAt: "2026-07-23T11:18:00.000Z",
     status: "pending",
+    notes: "",
     updatedAt: "2026-07-23T11:18:00.000Z",
   },
   {
@@ -35,6 +37,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Landing Page",
     enteredAt: "2026-07-22T19:34:00.000Z",
     status: "attended",
+    notes: "Retornar no período da tarde.",
     updatedAt: "2026-07-23T10:25:00.000Z",
   },
   {
@@ -47,6 +50,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Orgânico",
     enteredAt: "2026-07-22T17:03:00.000Z",
     status: "closed",
+    notes: "Contrato aprovado.",
     updatedAt: "2026-07-23T09:44:00.000Z",
   },
   {
@@ -59,6 +63,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Indicação",
     enteredAt: "2026-07-22T14:20:00.000Z",
     status: "qualified",
+    notes: "",
     updatedAt: "2026-07-22T18:30:00.000Z",
   },
   {
@@ -71,6 +76,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Google Ads",
     enteredAt: "2026-07-21T20:14:00.000Z",
     status: "disqualified",
+    notes: "Fora da região atendida.",
     updatedAt: "2026-07-22T12:08:00.000Z",
   },
   {
@@ -83,6 +89,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Meta Ads",
     enteredAt: "2026-07-21T16:28:00.000Z",
     status: "attended",
+    notes: "",
     updatedAt: "2026-07-21T18:02:00.000Z",
   },
   {
@@ -95,6 +102,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "WhatsApp",
     enteredAt: "2026-07-20T18:47:00.000Z",
     status: "pending",
+    notes: "Contato recebido pelo WhatsApp.",
     updatedAt: "2026-07-20T18:47:00.000Z",
   },
   {
@@ -107,6 +115,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Landing Page",
     enteredAt: "2026-07-20T12:22:00.000Z",
     status: "closed",
+    notes: "",
     updatedAt: "2026-07-21T15:38:00.000Z",
   },
   {
@@ -119,6 +128,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Google Ads",
     enteredAt: "2026-07-19T15:51:00.000Z",
     status: "qualified",
+    notes: "Aguardando confirmação da diretoria.",
     updatedAt: "2026-07-20T11:16:00.000Z",
   },
   {
@@ -131,6 +141,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Orgânico",
     enteredAt: "2026-07-18T17:35:00.000Z",
     status: "attended",
+    notes: "",
     updatedAt: "2026-07-19T13:02:00.000Z",
   },
   {
@@ -143,6 +154,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Meta Ads",
     enteredAt: "2026-07-17T13:08:00.000Z",
     status: "disqualified",
+    notes: "Sem previsão de contratação.",
     updatedAt: "2026-07-18T10:45:00.000Z",
   },
   {
@@ -155,6 +167,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Indicação",
     enteredAt: "2026-07-16T18:59:00.000Z",
     status: "closed",
+    notes: "",
     updatedAt: "2026-07-18T14:12:00.000Z",
   },
   {
@@ -167,6 +180,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Google Ads",
     enteredAt: "2026-07-15T15:43:00.000Z",
     status: "qualified",
+    notes: "Enviar apresentação institucional.",
     updatedAt: "2026-07-16T11:20:00.000Z",
   },
   {
@@ -179,6 +193,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "WhatsApp",
     enteredAt: "2026-07-14T14:09:00.000Z",
     status: "attended",
+    notes: "",
     updatedAt: "2026-07-15T09:48:00.000Z",
   },
   {
@@ -191,6 +206,7 @@ export const DEMO_LEADS: Lead[] = [
     origin: "Landing Page",
     enteredAt: "2026-07-13T19:26:00.000Z",
     status: "closed",
+    notes: "Projeto iniciado.",
     updatedAt: "2026-07-15T16:44:00.000Z",
   },
 ];

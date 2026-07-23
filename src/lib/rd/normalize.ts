@@ -91,6 +91,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
       root.event_type === "WEBHOOK.MARKED_OPPORTUNITY"
         ? "qualified"
         : "pending",
+    notes: "",
     updatedAt: new Date().toISOString(),
   };
 }
