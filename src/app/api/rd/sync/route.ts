@@ -3,6 +3,8 @@ import { isDashboardAuthorized } from "@/server/dashboard-auth";
 import { isLiveMode, upsertLeads } from "@/server/lead-repository";
 import { importAllRdContacts, isRdConfigured } from "@/server/rd-client";
 
+export const maxDuration = 60;
+
 export async function POST() {
   if (!(await isDashboardAuthorized())) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
@@ -22,6 +24,7 @@ export async function POST() {
     const imported = await upsertLeads(contacts);
     return NextResponse.json({ imported });
   } catch (error) {
+    console.error("Falha na sincronização com o RD Station:", error);
     return NextResponse.json(
       {
         error:
