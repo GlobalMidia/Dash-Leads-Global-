@@ -10,8 +10,12 @@ type LeadInput = Omit<Lead, "id" | "updatedAt"> & {
   updatedAt?: string;
 };
 
+export function isPublicPrototypeMode() {
+  return process.env.PUBLIC_PROTOTYPE === "true";
+}
+
 export function isLiveMode() {
-  return Boolean(process.env.DATABASE_URL);
+  return !isPublicPrototypeMode() && Boolean(process.env.DATABASE_URL);
 }
 
 function getSql() {

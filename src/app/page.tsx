@@ -13,7 +13,7 @@ export default async function Home() {
     <LeadDashboard
       initialLeads={await listLeads()}
       mode={isLiveMode() ? "live" : "demo"}
-      rdConfigured={isRdConfigured()}
+      rdConfigured={isLiveMode() && isRdConfigured()}
     />
   );
 }

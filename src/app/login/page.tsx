@@ -8,7 +8,12 @@ import {
 export const metadata = { title: "Acesso | Dashboard de Leads" };
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
-  if (await isDashboardAuthorized()) redirect("/");
-  return <LoginForm configured={authIsConfigured()} />;
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ preview?: string }>;
+}) {
+  const preview = (await searchParams).preview === "1";
+  if (!preview && (await isDashboardAuthorized())) redirect("/");
+  return <LoginForm configured={authIsConfigured()} preview={preview} />;
 }

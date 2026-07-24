@@ -9,9 +9,12 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   ClipboardCopy,
   FileDown,
+  FileSpreadsheet,
   Filter,
+  History,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -20,13 +23,23 @@ import {
   Phone,
   RefreshCw,
   Search,
+  Settings2,
   SlidersHorizontal,
   Target,
+  Upload,
   UserCheck,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  ImportLeadsModal,
+  type ImportConfirmation,
+} from "@/components/import-leads-modal";
+import { ProfilePreferencesModal } from "@/components/profile-preferences-modal";
+import { QuickGuideModal } from "@/components/quick-guide-modal";
+import { useProfilePreferences } from "@/components/use-profile-preferences";
+import { normalizeCompany } from "@/lib/csv-import";
 import { leadsToCsv } from "@/lib/export-leads";
 import {
   filterLeads,
@@ -59,6 +72,11 @@ const DEFAULT_FILTERS: DashboardFilters = {
 
 const PAGE_SIZE = 8;
 const ORIGIN_COLORS = ["#2f7df4", "#17b6a4", "#ff9f43", "#7257d8", "#e95e6b"];
+const PROTOTYPE_USER = {
+  name: "Marina Costa",
+  email: "marina@globalmidia.digital",
+  initials: "MC",
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -68,6 +86,16 @@ function formatDate(value: string) {
   })
     .format(new Date(value))
     .replace(".", "");
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function initials(name: string) {
@@ -255,6 +283,12 @@ export function LeadDashboard({
   mode,
   rdConfigured,
 }: DashboardProps) {
+  const {
+    preferences,
+    setPreferences,
+    resetPreferences,
+    resolvedTheme,
+  } = useProfilePreferences(PROTOTYPE_USER.email);
   const [leads, setLeads] = useState(initialLeads);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -265,6 +299,10 @@ export function LeadDashboard({
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState<"details" | "history">("details");
 
   const origins = useMemo(
     () => [...new Set(leads.map((lead) => lead.origin))].sort(),
@@ -280,6 +318,22 @@ export function LeadDashboard({
     () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
     [leads, selectedLeadId],
   );
+  const selectedCompanyPeers = useMemo(() => {
+    if (!selectedLead?.companyGroupId) return [];
+    return leads.filter(
+      (lead) =>
+        lead.companyGroupId === selectedLead.companyGroupId &&
+        lead.id !== selectedLead.id,
+    );
+  }, [leads, selectedLead]);
+  const companyGroupSizes = useMemo(() => {
+    const sizes = new Map<string, number>();
+    leads.forEach((lead) => {
+      if (!lead.companyGroupId) return;
+      sizes.set(lead.companyGroupId, (sizes.get(lead.companyGroupId) ?? 0) + 1);
+    });
+    return sizes;
+  }, [leads]);
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
   const paginatedLeads = filteredLeads.slice(
     (page - 1) * PAGE_SIZE,
@@ -324,6 +378,7 @@ export function LeadDashboard({
   function openLeadDetails(lead: Lead) {
     setSelectedLeadId(lead.id);
     setNotesDraft(lead.notes);
+    setDetailsTab("details");
   }
 
   async function copyContact(value: string, label: string) {
@@ -357,10 +412,28 @@ export function LeadDashboard({
 
     const before = leads;
     const notes = notesDraft.trim();
+    const occurredAt = new Date().toISOString();
     setLeads((current) =>
       current.map((lead) =>
         lead.id === selectedLead.id
-          ? { ...lead, notes, updatedAt: new Date().toISOString() }
+          ? {
+              ...lead,
+              notes,
+              updatedAt: occurredAt,
+              history: [
+                {
+                  id: `notes-${occurredAt}`,
+                  title: "Observação atualizada",
+                  description: notes
+                    ? "O conteúdo das observações foi atualizado."
+                    : "As observações do lead foram removidas.",
+                  actor: PROTOTYPE_USER.name,
+                  actorEmail: PROTOTYPE_USER.email,
+                  occurredAt,
+                },
+                ...(lead.history ?? []),
+              ],
+            }
           : lead,
       ),
     );
@@ -423,10 +496,26 @@ export function LeadDashboard({
 
   async function handleStatusChange(id: string, status: LeadStatus) {
     const before = leads;
+    const occurredAt = new Date().toISOString();
     setLeads((current) =>
       current.map((lead) =>
         lead.id === id
-          ? { ...lead, status, updatedAt: new Date().toISOString() }
+          ? {
+              ...lead,
+              status,
+              updatedAt: occurredAt,
+              history: [
+                {
+                  id: `status-${occurredAt}`,
+                  title: "Qualificação alterada",
+                  description: `O lead foi marcado como ${STATUS_LABELS[status].toLocaleLowerCase("pt-BR")}.`,
+                  actor: PROTOTYPE_USER.name,
+                  actorEmail: PROTOTYPE_USER.email,
+                  occurredAt,
+                },
+                ...(lead.history ?? []),
+              ],
+            }
           : lead,
       ),
     );
@@ -455,6 +544,13 @@ export function LeadDashboard({
   }
 
   async function handleSync() {
+    if (mode === "demo") {
+      setNotice(
+        "Modo demonstração: a integração com o RD Station está desativada.",
+      );
+      return;
+    }
+
     setSyncing(true);
     try {
       const response = await fetch("/api/rd/sync", { method: "POST" });
@@ -482,6 +578,127 @@ export function LeadDashboard({
     window.location.assign("/login");
   }
 
+  function handleUserAction() {
+    setPreferencesOpen(true);
+  }
+
+  function handleViewLogin() {
+    window.location.assign("/login?preview=1");
+  }
+
+  function handleImport(confirmation: ImportConfirmation) {
+    const importedAt = new Date().toISOString();
+    const groupedRows = new Set(confirmation.groupedRowNumbers);
+    const groupByMatchedLead = new Map<string, string>();
+    const groupByCompany = new Map<string, string>();
+
+    confirmation.records.forEach((record) => {
+      if (
+        record.match?.kind === "company" &&
+        record.match.matchedLeadId &&
+        groupedRows.has(record.rowNumber)
+      ) {
+        const normalizedCompany = normalizeCompany(record.company);
+        const matchedLead = leads.find(
+          (lead) => lead.id === record.match?.matchedLeadId,
+        );
+        const groupId =
+          matchedLead?.companyGroupId ??
+          `company:${normalizedCompany || record.match.matchedLeadId}`;
+        if (normalizedCompany) groupByCompany.set(normalizedCompany, groupId);
+        groupByMatchedLead.set(record.match.matchedLeadId, groupId);
+      }
+    });
+
+    const importedLeads: Lead[] = confirmation.records.map((record, index) => {
+      const groupId = groupByCompany.get(normalizeCompany(record.company));
+      const grouped = Boolean(groupId);
+      const history = [
+        ...(grouped
+          ? [
+              {
+                id: `grouped-${record.rowNumber}-${importedAt}`,
+                title: "Empresa agrupada sem fusão",
+                description:
+                  "A empresa foi confirmada como a mesma de outro registro. Os leads permanecem separados.",
+                actor: PROTOTYPE_USER.name,
+                actorEmail: PROTOTYPE_USER.email,
+                occurredAt: importedAt,
+              },
+            ]
+          : []),
+        {
+          id: `import-${record.rowNumber}-${importedAt}`,
+          title: "Lead importado",
+          description: `Linha ${record.rowNumber} do arquivo ${confirmation.fileName}.`,
+          actor: PROTOTYPE_USER.name,
+          actorEmail: PROTOTYPE_USER.email,
+          occurredAt: importedAt,
+        },
+      ];
+
+      return {
+        id: `csv-${Date.now()}-${index}`,
+        rdUuid: null,
+        name: record.name,
+        company: record.company,
+        email: record.email,
+        phone: record.phone,
+        origin: record.origin,
+        enteredAt: record.enteredAt,
+        status: record.status,
+        notes: record.notes,
+        updatedAt: importedAt,
+        source: {
+          type: "csv",
+          label: "Importação CSV",
+          fileName: confirmation.fileName,
+          importedAt,
+          importedBy: PROTOTYPE_USER.email,
+        },
+        companyGroupId: groupId,
+        duplicateStatus: record.match
+          ? grouped
+            ? "confirmed"
+            : "potential"
+          : undefined,
+        additionalData: record.additionalData,
+        history,
+      };
+    });
+
+    setLeads((current) => {
+      const updatedCurrent = current.map((lead) => {
+        const groupId =
+          groupByMatchedLead.get(lead.id) ??
+          groupByCompany.get(normalizeCompany(lead.company));
+        if (!groupId) return lead;
+        return {
+          ...lead,
+          companyGroupId: groupId,
+          duplicateStatus: "confirmed" as const,
+          history: [
+            {
+              id: `grouped-existing-${lead.id}-${importedAt}`,
+              title: "Empresa agrupada sem fusão",
+              description: `Agrupamento confirmado durante a importação de ${confirmation.fileName}.`,
+              actor: PROTOTYPE_USER.name,
+              actorEmail: PROTOTYPE_USER.email,
+              occurredAt: importedAt,
+            },
+            ...(lead.history ?? []),
+          ],
+        };
+      });
+      return [...importedLeads, ...updatedCurrent];
+    });
+    setPage(1);
+    setImportOpen(false);
+    setNotice(
+      `${importedLeads.length} registros importados na prévia; ${groupedRows.size} agrupados sem fusão.`,
+    );
+  }
+
   const topOrigins = originData.slice(0, 5);
   const originTotal = Math.max(filteredLeads.length, 1);
   const ringSegments = topOrigins.reduce(
@@ -499,7 +716,13 @@ export function LeadDashboard({
   ).parts;
 
   return (
-    <div className="dashboard-shell">
+    <div
+      className="dashboard-shell"
+      data-contrast={preferences.highContrast ? "high" : "standard"}
+      data-motion={preferences.reducedMotion ? "reduced" : "full"}
+      data-text-size={preferences.textSize}
+      data-theme={resolvedTheme}
+    >
       <header className="topbar">
         <Logo />
         <div className="topbar-actions">
@@ -507,19 +730,31 @@ export function LeadDashboard({
             <span className="mode-dot" />
             {mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}
           </span>
+          <button
+            aria-label="Abrir preferências do perfil"
+            className="mobile-profile-button"
+            onClick={() => setPreferencesOpen(true)}
+            type="button"
+          >
+            {PROTOTYPE_USER.initials}
+          </button>
           <button className="icon-button" aria-label="Notificações" type="button">
             <Bell size={18} strokeWidth={1.9} />
           </button>
           <button
             className="user-badge"
-            onClick={handleLogout}
-            title="Sair do painel"
+            onClick={handleUserAction}
+            title={
+              mode === "demo"
+                ? "Abrir preferências de aparência"
+                : "Abrir preferências do perfil"
+            }
             type="button"
           >
-            <span>GM</span>
+            <span>{PROTOTYPE_USER.initials}</span>
             <div>
-              <strong>Equipe Global</strong>
-              <small>Marketing</small>
+              <strong>{PROTOTYPE_USER.name}</strong>
+              <small>{PROTOTYPE_USER.email}</small>
             </div>
             {mode === "live" && <LogOut className="logout-icon" size={14} />}
           </button>
@@ -551,9 +786,22 @@ export function LeadDashboard({
           <SlidersHorizontal size={19} />
         </button>
         <div className="rail-spacer" />
-        <div className="rail-avatar" aria-label="Equipe Global">
-          GM
-        </div>
+        <button
+          className="rail-button"
+          aria-label="Preferências do perfil"
+          onClick={() => setPreferencesOpen(true)}
+          type="button"
+        >
+          <Settings2 size={19} />
+        </button>
+        <button
+          className="rail-avatar"
+          aria-label="Abrir preferências de Marina Costa"
+          onClick={() => setPreferencesOpen(true)}
+          type="button"
+        >
+          {PROTOTYPE_USER.initials}
+        </button>
       </aside>
 
       <main className="dashboard-main">
@@ -568,12 +816,28 @@ export function LeadDashboard({
           </div>
           <div className="hero-actions">
             <button
+              className="tutorial-button"
+              onClick={() => setGuideOpen(true)}
+              type="button"
+            >
+              <CircleHelp size={17} />
+              Como usar
+            </button>
+            <button
               className="mobile-filter-button"
               onClick={() => setFiltersOpen((current) => !current)}
               type="button"
             >
               <Filter size={17} />
               Filtros
+            </button>
+            <button
+              className="import-button"
+              onClick={() => setImportOpen(true)}
+              type="button"
+            >
+              <Upload size={17} />
+              Importar CSV
             </button>
             <button
               className="export-button"
@@ -602,13 +866,15 @@ export function LeadDashboard({
               <ArrowDownToLine size={19} />
             </div>
             <div>
-              <strong>Prévia pronta para conexão</strong>
+              <strong>Protótipo da versão final</strong>
               <p>
-                Esta tela usa dados fictícios. Banco, OAuth e webhook do RD
-                Station já estão preparados para receber as credenciais.
+                Teste a importação CSV, os agrupamentos, a procedência e o
+                histórico. Nenhuma alteração desta prévia é permanente.
               </p>
             </div>
-            <span>{rdConfigured ? "RD configurado" : "Aguardando credenciais"}</span>
+            <span>
+              {rdConfigured ? "RD configurado" : "Ambiente demonstrativo"}
+            </span>
           </section>
         )}
 
@@ -833,10 +1099,31 @@ export function LeadDashboard({
                           </div>
                         </td>
                         <td>
-                          <span className="company-value">
-                            <Building2 size={13} />
-                            {lead.company || "Não informada"}
-                          </span>
+                          <div className="company-stack">
+                            <span className="company-value">
+                              <Building2 size={13} />
+                              {lead.company || "Não informada"}
+                            </span>
+                            {lead.companyGroupId &&
+                              (companyGroupSizes.get(lead.companyGroupId) ?? 0) >
+                                1 && (
+                                <button
+                                  className="company-group-badge"
+                                  onClick={() => openLeadDetails(lead)}
+                                  type="button"
+                                >
+                                  <Users size={11} />
+                                  {companyGroupSizes.get(lead.companyGroupId)}{" "}
+                                  registros agrupados
+                                </button>
+                              )}
+                            {lead.source?.fileName && (
+                              <small className="source-file">
+                                <FileSpreadsheet size={10} />
+                                {lead.source.fileName}
+                              </small>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <div className="contact-stack">
@@ -900,6 +1187,15 @@ export function LeadDashboard({
                             {lead.name}
                           </button>
                           <small>{lead.company || "Empresa não informada"}</small>
+                          {lead.companyGroupId &&
+                            (companyGroupSizes.get(lead.companyGroupId) ?? 0) >
+                              1 && (
+                              <span className="mobile-group-note">
+                                <Users size={11} />
+                                {companyGroupSizes.get(lead.companyGroupId)}{" "}
+                                registros agrupados
+                              </span>
+                            )}
                         </div>
                       </div>
                       <StatusSelect
@@ -931,7 +1227,9 @@ export function LeadDashboard({
                         <CalendarDays size={13} />
                         {formatDate(lead.enteredAt)}
                       </span>
-                      <span className="mobile-origin">{lead.origin}</span>
+                      <span className="mobile-origin">
+                        {lead.source?.fileName ?? lead.origin}
+                      </span>
                     </div>
                   </article>
                 ))}
@@ -1028,76 +1326,231 @@ export function LeadDashboard({
               </button>
             </header>
 
-            <div className="details-grid">
-              <div>
-                <span>E-mail</span>
-                <button
-                  onClick={() => copyContact(selectedLead.email, "E-mail")}
-                  title="Copiar e-mail"
-                  type="button"
-                >
-                  <Mail size={14} />
-                  {selectedLead.email}
-                  <ClipboardCopy className="copy-hint" size={12} />
-                </button>
-              </div>
-              <div>
-                <span>Telefone</span>
-                <button
-                  onClick={() => copyContact(selectedLead.phone, "Telefone")}
-                  title="Copiar telefone"
-                  type="button"
-                >
-                  <Phone size={14} />
-                  {selectedLead.phone || "Não informado"}
-                  <ClipboardCopy className="copy-hint" size={12} />
-                </button>
-              </div>
-              <div>
-                <span>Origem</span>
-                <strong>{selectedLead.origin}</strong>
-              </div>
-              <div>
-                <span>Data de entrada</span>
-                <strong>{formatDate(selectedLead.enteredAt)}</strong>
-              </div>
-              <div className="details-status-row">
-                <span>Qualificação</span>
-                <strong
-                  style={{
-                    color: STATUS_COLORS[selectedLead.status],
-                    backgroundColor: `${STATUS_COLORS[selectedLead.status]}12`,
-                  }}
-                >
-                  <i
-                    style={{ backgroundColor: STATUS_COLORS[selectedLead.status] }}
-                  />
-                  {STATUS_LABELS[selectedLead.status]}
-                </strong>
-              </div>
-              <div>
-                <span>Última atualização</span>
-                <strong>{formatDate(selectedLead.updatedAt)}</strong>
-              </div>
-            </div>
+            <nav aria-label="Seções do lead" className="details-tabs">
+              <button
+                className={detailsTab === "details" ? "active" : ""}
+                onClick={() => setDetailsTab("details")}
+                type="button"
+              >
+                <Building2 size={14} />
+                Detalhes
+              </button>
+              <button
+                className={detailsTab === "history" ? "active" : ""}
+                onClick={() => setDetailsTab("history")}
+                type="button"
+              >
+                <History size={14} />
+                Histórico
+                <span>{Math.max(selectedLead.history?.length ?? 0, 1)}</span>
+              </button>
+            </nav>
 
-            <label className="notes-field">
-              <span>
-                <span>
-                  <MessageSquareText size={15} />
-                  Observações
-                </span>
-                <small>{notesDraft.length}/280</small>
-              </span>
-              <textarea
-                autoFocus
-                maxLength={280}
-                onChange={(event) => setNotesDraft(event.target.value)}
-                placeholder="Adicione uma observação breve sobre este lead..."
-                rows={4}
-                value={notesDraft}
-              />
-            </label>
+            {detailsTab === "details" ? (
+              <>
+                <div className="details-grid">
+                  <div>
+                    <span>E-mail</span>
+                    <button
+                      onClick={() => copyContact(selectedLead.email, "E-mail")}
+                      title="Copiar e-mail"
+                      type="button"
+                    >
+                      <Mail size={14} />
+                      {selectedLead.email || "Não informado"}
+                      <ClipboardCopy className="copy-hint" size={12} />
+                    </button>
+                  </div>
+                  <div>
+                    <span>Telefone</span>
+                    <button
+                      onClick={() => copyContact(selectedLead.phone, "Telefone")}
+                      title="Copiar telefone"
+                      type="button"
+                    >
+                      <Phone size={14} />
+                      {selectedLead.phone || "Não informado"}
+                      <ClipboardCopy className="copy-hint" size={12} />
+                    </button>
+                  </div>
+                  <div>
+                    <span>Origem</span>
+                    <strong>{selectedLead.origin}</strong>
+                  </div>
+                  <div>
+                    <span>Data de entrada</span>
+                    <strong>{formatDate(selectedLead.enteredAt)}</strong>
+                  </div>
+                  <div className="details-status-row">
+                    <span>Qualificação</span>
+                    <strong
+                      style={{
+                        color: STATUS_COLORS[selectedLead.status],
+                        backgroundColor: `${STATUS_COLORS[selectedLead.status]}12`,
+                      }}
+                    >
+                      <i
+                        style={{
+                          backgroundColor: STATUS_COLORS[selectedLead.status],
+                        }}
+                      />
+                      {STATUS_LABELS[selectedLead.status]}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Última atualização</span>
+                    <strong>{formatDate(selectedLead.updatedAt)}</strong>
+                  </div>
+                </div>
+
+                <section className="source-card">
+                  <span>
+                    <FileSpreadsheet size={16} />
+                  </span>
+                  <div>
+                    <small>PROCEDÊNCIA DO REGISTRO</small>
+                    <strong>
+                      {selectedLead.source?.fileName ??
+                        selectedLead.source?.label ??
+                        (selectedLead.rdUuid ? "RD Station" : "Cadastro manual")}
+                    </strong>
+                    <p>
+                      {selectedLead.source?.importedBy
+                        ? `Importado por ${selectedLead.source.importedBy}`
+                        : "Origem registrada automaticamente"}
+                    </p>
+                  </div>
+                  <em>{selectedLead.source?.type?.toUpperCase() ?? "RD"}</em>
+                </section>
+
+                {selectedCompanyPeers.length > 0 && (
+                  <section className="company-group-card">
+                    <header>
+                      <div>
+                        <Users size={16} />
+                        <span>
+                          <strong>Mesma empresa</strong>
+                          <small>
+                            {selectedCompanyPeers.length + 1} registros mantidos
+                            separadamente
+                          </small>
+                        </span>
+                      </div>
+                      <em>Sem fusão</em>
+                    </header>
+                    <div>
+                      {[selectedLead, ...selectedCompanyPeers].map((lead) => (
+                        <button
+                          className={lead.id === selectedLead.id ? "active" : ""}
+                          key={lead.id}
+                          onClick={() => openLeadDetails(lead)}
+                          type="button"
+                        >
+                          <span>{initials(lead.name)}</span>
+                          <div>
+                            <strong>{lead.name}</strong>
+                            <small>
+                              {lead.source?.fileName ??
+                                lead.source?.label ??
+                                "RD Station"}
+                            </small>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {selectedLead.additionalData &&
+                  Object.keys(selectedLead.additionalData).length > 0 && (
+                    <section className="additional-data-card">
+                      <header>
+                        <div>
+                          <FileSpreadsheet size={15} />
+                          <span>
+                            <strong>Dados adicionais da importação</strong>
+                            <small>
+                              Colunas preservadas sem alterar os campos principais
+                            </small>
+                          </span>
+                        </div>
+                      </header>
+                      <dl>
+                        {Object.entries(selectedLead.additionalData).map(
+                          ([label, value]) => (
+                            <div key={label}>
+                              <dt>{label}</dt>
+                              <dd>{value}</dd>
+                            </div>
+                          ),
+                        )}
+                      </dl>
+                    </section>
+                  )}
+
+                <label className="notes-field">
+                  <span>
+                    <span>
+                      <MessageSquareText size={15} />
+                      Observações
+                    </span>
+                    <small>{notesDraft.length}/280</small>
+                  </span>
+                  <textarea
+                    autoFocus
+                    maxLength={280}
+                    onChange={(event) => setNotesDraft(event.target.value)}
+                    placeholder="Adicione uma observação breve sobre este lead..."
+                    rows={4}
+                    value={notesDraft}
+                  />
+                </label>
+              </>
+            ) : (
+              <section className="history-panel">
+                <div className="history-intro">
+                  <span>
+                    <History size={16} />
+                  </span>
+                  <div>
+                    <strong>Rastreamento de alterações</strong>
+                    <p>Quem alterou, o que mudou e quando aconteceu.</p>
+                  </div>
+                </div>
+                <ol>
+                  {(selectedLead.history?.length
+                    ? selectedLead.history
+                    : [
+                        {
+                          id: `created-${selectedLead.id}`,
+                          title: "Lead adicionado à base",
+                          description:
+                            "Registro criado durante a sincronização inicial.",
+                          actor: "Integração RD Station",
+                          occurredAt: selectedLead.enteredAt,
+                        },
+                      ]
+                  ).map((event) => (
+                    <li key={event.id}>
+                      <span />
+                      <div>
+                        <header>
+                          <strong>{event.title}</strong>
+                          <time dateTime={event.occurredAt}>
+                            {formatDateTime(event.occurredAt)}
+                          </time>
+                        </header>
+                        <p>{event.description}</p>
+                        <small>
+                          {event.actor}
+                          {event.actorEmail && ` · ${event.actorEmail}`}
+                        </small>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
 
             <footer className="details-footer">
               <button
@@ -1106,19 +1559,51 @@ export function LeadDashboard({
                 onClick={closeLeadDetails}
                 type="button"
               >
-                Cancelar
+                {detailsTab === "details" ? "Cancelar" : "Fechar"}
               </button>
-              <button
-                className="details-save"
-                disabled={savingNotes}
-                onClick={handleSaveNotes}
-                type="button"
-              >
-                {savingNotes ? "Salvando..." : "Salvar observação"}
-              </button>
+              {detailsTab === "details" && (
+                <button
+                  className="details-save"
+                  disabled={savingNotes}
+                  onClick={handleSaveNotes}
+                  type="button"
+                >
+                  {savingNotes ? "Salvando..." : "Salvar observação"}
+                </button>
+              )}
             </footer>
           </section>
         </div>
+      )}
+
+      {importOpen && (
+        <ImportLeadsModal
+          existingLeads={leads}
+          onClose={() => setImportOpen(false)}
+          onConfirm={handleImport}
+        />
+      )}
+
+      {guideOpen && (
+        <QuickGuideModal
+          onClose={() => setGuideOpen(false)}
+          onOpenImport={() => {
+            setGuideOpen(false);
+            setImportOpen(true);
+          }}
+        />
+      )}
+
+      {preferencesOpen && (
+        <ProfilePreferencesModal
+          email={PROTOTYPE_USER.email}
+          onChange={setPreferences}
+          onClose={() => setPreferencesOpen(false)}
+          onLogout={mode === "live" ? () => void handleLogout() : undefined}
+          onReset={resetPreferences}
+          onViewLogin={handleViewLogin}
+          preferences={preferences}
+        />
       )}
 
       {notice && (

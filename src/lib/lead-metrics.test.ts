@@ -5,9 +5,9 @@ import { filterLeads, groupByOrigin, summarizeLeads } from "@/lib/lead-metrics";
 describe("lead metrics", () => {
   it("summarizes all qualification states", () => {
     const summary = summarizeLeads(DEMO_LEADS);
-    expect(summary.total).toBe(16);
+    expect(summary.total).toBe(17);
     expect(summary.closed).toBe(4);
-    expect(summary.conversionRate).toBe(25);
+    expect(summary.conversionRate).toBe(24);
   });
 
   it("filters by search and status", () => {

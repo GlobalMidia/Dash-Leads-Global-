@@ -8,6 +8,23 @@ export const LEAD_STATUSES = [
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+export type LeadSource = {
+  type: "rd" | "csv" | "manual";
+  label: string;
+  fileName?: string;
+  importedAt?: string;
+  importedBy?: string;
+};
+
+export type LeadHistoryEvent = {
+  id: string;
+  title: string;
+  description: string;
+  actor: string;
+  actorEmail?: string;
+  occurredAt: string;
+};
+
 export type Lead = {
   id: string;
   rdUuid: string | null;
@@ -20,6 +37,11 @@ export type Lead = {
   status: LeadStatus;
   notes: string;
   updatedAt: string;
+  source?: LeadSource;
+  companyGroupId?: string;
+  duplicateStatus?: "potential" | "confirmed";
+  additionalData?: Record<string, string>;
+  history?: LeadHistoryEvent[];
 };
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {

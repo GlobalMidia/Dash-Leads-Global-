@@ -2,7 +2,10 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { isLiveMode } from "@/server/lead-repository";
+import {
+  isLiveMode,
+  isPublicPrototypeMode,
+} from "@/server/lead-repository";
 
 const COOKIE_NAME = "global_dashboard_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12;
@@ -28,11 +31,13 @@ function signature(expiresAt: string, secret: string) {
 }
 
 export function authIsRequired() {
+  if (isPublicPrototypeMode()) return false;
   const { password, secret } = credentials();
   return Boolean(password || secret || isLiveMode());
 }
 
 export function authIsConfigured() {
+  if (isPublicPrototypeMode()) return false;
   const { password, secret } = credentials();
   return Boolean(password && secret);
 }

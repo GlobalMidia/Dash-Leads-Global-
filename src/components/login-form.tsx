@@ -1,9 +1,22 @@
 "use client";
 
-import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  ShieldCheck,
+} from "lucide-react";
 import { useState } from "react";
 
-export function LoginForm({ configured }: { configured: boolean }) {
+export function LoginForm({
+  configured,
+  preview = false,
+}: {
+  configured: boolean;
+  preview?: boolean;
+}) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,12 +48,44 @@ export function LoginForm({ configured }: { configured: boolean }) {
       <section className="login-card">
         <div className="login-mark">G</div>
         <p className="login-eyebrow">GLOBAL MÍDIA</p>
-        <h1>Acesse o painel de leads</h1>
+        <h1>{preview ? "Acesso corporativo" : "Acesse o painel de leads"}</h1>
         <p className="login-subtitle">
-          Ambiente restrito para acompanhamento comercial.
+          {preview
+            ? "Entre com sua conta individual da Global Mídia."
+            : "Ambiente restrito para acompanhamento comercial."}
         </p>
 
-        {configured ? (
+        {preview ? (
+          <div className="workspace-login">
+            <button
+              className="google-login-button"
+              onClick={() => window.location.assign("/")}
+              type="button"
+            >
+              <span>G</span>
+              Continuar com Google
+              <ArrowRight size={17} />
+            </button>
+            <div className="domain-rule">
+              <ShieldCheck size={17} />
+              <div>
+                <strong>Somente contas autorizadas</strong>
+                <p>
+                  O acesso será permitido apenas para e-mails terminados em{" "}
+                  <code>@globalmidia.digital</code>.
+                </p>
+              </div>
+            </div>
+            <button
+              className="login-preview-back"
+              onClick={() => window.location.assign("/")}
+              type="button"
+            >
+              <ArrowLeft size={14} />
+              Voltar ao protótipo
+            </button>
+          </div>
+        ) : configured ? (
           <form onSubmit={handleSubmit}>
             <label>
               Senha de acesso
