@@ -61,6 +61,7 @@ type DashboardProps = {
   initialLeads: Lead[];
   mode: "demo" | "live";
   rdConfigured: boolean;
+  rdConnected: boolean;
   neonAuthEnabled: boolean;
   user: {
     name: string;
@@ -283,6 +284,7 @@ export function LeadDashboard({
   initialLeads,
   mode,
   rdConfigured,
+  rdConnected,
   neonAuthEnabled,
   user,
 }: DashboardProps) {
@@ -574,6 +576,10 @@ export function LeadDashboard({
     } finally {
       setSyncing(false);
     }
+  }
+
+  function handleConnectRd() {
+    window.location.assign("/api/rd/connect");
   }
 
   async function handleLogout() {
@@ -892,12 +898,22 @@ export function LeadDashboard({
             </button>
             <button
               className="sync-button"
-              disabled={syncing}
-              onClick={handleSync}
+              disabled={syncing || (!rdConfigured && mode === "live")}
+              onClick={rdConnected || mode === "demo" ? handleSync : handleConnectRd}
               type="button"
             >
-              <RefreshCw className={syncing ? "animate-spin" : ""} size={17} />
-              {syncing ? "Sincronizando..." : "Sincronizar RD"}
+              {rdConnected || mode === "demo" ? (
+                <RefreshCw className={syncing ? "animate-spin" : ""} size={17} />
+              ) : (
+                <RefreshCw size={17} />
+              )}
+              {syncing
+                ? "Sincronizando..."
+                : rdConnected || mode === "demo"
+                  ? "Sincronizar RD"
+                  : rdConfigured
+                    ? "Conectar RD"
+                    : "RD indisponível"}
             </button>
           </div>
         </section>
