@@ -5,12 +5,17 @@ import { loadStoredRdTokens, storeRdTokens } from "@/server/rd-oauth";
 import type { Lead } from "@/types/lead";
 
 const RD_API_BASE = "https://api.rd.services";
-const SEGMENT_ALL_CONTACTS = "1";
 
 type TokenResponse = {
   access_token?: string;
   refresh_token?: string;
   expires_in?: number;
+};
+
+type RdSegmentation = {
+  id?: string | number;
+  name?: string;
+  standard?: boolean | null;
 };
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -96,7 +101,17 @@ async function rdGet(url: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`Erro ${response.status} ao consultar o RD Station.`);
+    const body = await response.text();
+    let detail = "";
+    try {
+      const parsed = JSON.parse(body) as { message?: string; error?: string };
+      detail = parsed.message ?? parsed.error ?? "";
+    } catch {
+      detail = body.slice(0, 160);
+    }
+    throw new Error(
+      `RD Station respondeu ${response.status}${detail ? `: ${detail}` : ""}.`,
+    );
   }
 
   return {
@@ -105,15 +120,50 @@ async function rdGet(url: string) {
   };
 }
 
+function extractSegmentations(payload: unknown): RdSegmentation[] {
+  if (Array.isArray(payload)) return payload as RdSegmentation[];
+  if (!payload || typeof payload !== "object") return [];
+
+  const record = payload as Record<string, unknown>;
+  for (const key of ["segmentations", "contacts", "items", "data"]) {
+    if (Array.isArray(record[key])) return record[key] as RdSegmentation[];
+  }
+  return [];
+}
+
+async function allContactsSegmentationId() {
+  const result = await rdGet(`${RD_API_BASE}/platform/segmentations`);
+  const segmentations = extractSegmentations(result.payload);
+  const allContacts = segmentations.find((segmentation) => {
+    const name = segmentation.name
+      ?.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return Boolean(
+      segmentation.standard &&
+        name?.includes("todos os contatos da base de leads"),
+    );
+  });
+
+  if (!allContacts?.id) {
+    throw new Error(
+      "O RD Station não retornou a segmentação padrão ‘Todos os contatos da base de Leads’. Verifique se a conta possui acesso à base de Leads.",
+    );
+  }
+
+  return String(allContacts.id);
+}
+
 export async function importAllRdContacts(): Promise<Lead[]> {
   const pageSize = 125;
+  const segmentId = await allContactsSegmentationId();
   let page = 1;
   let totalRows = Number.POSITIVE_INFINITY;
   const leads = new Map<string, Lead>();
 
   while ((page - 1) * pageSize < totalRows && page <= 200) {
     const url = new URL(
-      `${RD_API_BASE}/platform/segmentations/${SEGMENT_ALL_CONTACTS}/contacts`,
+      `${RD_API_BASE}/platform/segmentations/${segmentId}/contacts`,
     );
     url.searchParams.set("page", String(page));
     url.searchParams.set("page_size", String(pageSize));
