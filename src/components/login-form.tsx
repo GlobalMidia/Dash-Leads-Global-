@@ -20,16 +20,24 @@ export function LoginForm({
   individualAuthEnabled: boolean;
   preview?: boolean;
 }) {
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [mode, setMode] = useState<"sign-in" | "sign-up" | "verify-email">("sign-in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function hasCorporateEmail(value: string) {
     return value.trim().toLowerCase().endsWith("@globalmidia.digital");
+  }
+
+  function readableAuthError(message?: string) {
+    if (message?.includes("404")) {
+      return "O acesso ainda está sendo preparado. Atualize a página e tente novamente em instantes.";
+    }
+    return message || "Não foi possível concluir esta operação.";
   }
 
   async function handleIndividualSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -40,6 +48,21 @@ export function LoginForm({
     try {
       if (!hasCorporateEmail(email)) {
         throw new Error("Use seu e-mail com final @globalmidia.digital.");
+      }
+
+      if (mode === "verify-email") {
+        const code = verificationCode.trim();
+        if (code.length < 4) {
+          throw new Error("Informe o código recebido por e-mail.");
+        }
+
+        const result = await neonAuthClient.emailOtp.verifyEmail({
+          email: email.trim().toLowerCase(),
+          otp: code,
+        });
+        if (result.error) throw new Error(readableAuthError(result.error.message));
+        window.location.assign("/");
+        return;
       }
 
       if (mode === "sign-up") {
@@ -55,10 +78,10 @@ export function LoginForm({
           email: email.trim().toLowerCase(),
           password,
         });
-        if (result.error) throw new Error(result.error.message);
-        setMode("sign-in");
+        if (result.error) throw new Error(readableAuthError(result.error.message));
+        setMode("verify-email");
         setPassword("");
-        setError("Conta criada. Verifique seu e-mail e entre com sua senha.");
+        setError(null);
         return;
       }
 
@@ -67,10 +90,28 @@ export function LoginForm({
         password,
         callbackURL: "/",
       });
-      if (result.error) throw new Error(result.error.message);
+      if (result.error) throw new Error(readableAuthError(result.error.message));
       window.location.assign("/");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Falha ao entrar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await neonAuthClient.emailOtp.sendVerificationOtp({
+        email: email.trim().toLowerCase(),
+        type: "email-verification",
+      });
+      if (result.error) throw new Error(readableAuthError(result.error.message));
+      setError("Enviamos um novo código para seu e-mail corporativo.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Não foi possível reenviar o código.");
     } finally {
       setLoading(false);
     }
@@ -141,7 +182,7 @@ export function LoginForm({
           </div>
         ) : individualAuthEnabled ? (
           <form onSubmit={handleIndividualSubmit}>
-            <div className="login-mode-switch" role="tablist" aria-label="Tipo de acesso">
+            {mode !== "verify-email" && <div className="login-mode-switch" role="tablist" aria-label="Tipo de acesso">
               <button
                 aria-selected={mode === "sign-in"}
                 className={mode === "sign-in" ? "is-active" : ""}
@@ -166,7 +207,32 @@ export function LoginForm({
               >
                 Criar conta
               </button>
-            </div>
+            </div>}
+            {mode === "verify-email" ? (
+              <>
+                <div className="domain-rule">
+                  <ShieldCheck size={17} />
+                  <div>
+                    <strong>Confirme seu e-mail</strong>
+                    <p>
+                      Enviamos um código para <code>{email}</code>. Digite-o abaixo para ativar sua conta.
+                    </p>
+                  </div>
+                </div>
+                <label>
+                  Código de confirmação
+                  <input
+                    autoComplete="one-time-code"
+                    autoFocus
+                    inputMode="numeric"
+                    onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ""))}
+                    placeholder="Digite o código recebido"
+                    required
+                    value={verificationCode}
+                  />
+                </label>
+              </>
+            ) : <>
             {mode === "sign-up" && (
               <label>
                 Nome completo
@@ -213,8 +279,9 @@ export function LoginForm({
                 </button>
               </span>
             </label>
+            </>}
             {error && <p className="login-error">{error}</p>}
-            <div className="domain-rule">
+            {mode !== "verify-email" && <div className="domain-rule">
               <ShieldCheck size={17} />
               <div>
                 <strong>Acesso exclusivo da Global Mídia</strong>
@@ -223,15 +290,27 @@ export function LoginForm({
                   acessam o painel.
                 </p>
               </div>
-            </div>
+            </div>}
             <button className="login-submit" disabled={loading} type="submit">
               {loading
                 ? "Aguarde..."
-                : mode === "sign-in"
+                : mode === "verify-email"
+                  ? "Confirmar e acessar"
+                  : mode === "sign-in"
                   ? "Entrar no painel"
                   : "Criar conta"}
               {!loading && <ArrowRight size={17} />}
             </button>
+            {mode === "verify-email" && (
+              <button
+                className="login-preview-back"
+                disabled={loading}
+                onClick={handleResendVerification}
+                type="button"
+              >
+                Reenviar código
+              </button>
+            )}
           </form>
         ) : configured ? (
           <form onSubmit={handleSharedPasswordSubmit}>
