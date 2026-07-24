@@ -5,6 +5,7 @@ import { loadStoredRdTokens, storeRdTokens } from "@/server/rd-oauth";
 import type { Lead } from "@/types/lead";
 
 const RD_API_BASE = "https://api.rd.services";
+const MAX_RD_CONTACTS_PER_SYNC = 500;
 
 type TokenResponse = {
   access_token?: string;
@@ -175,7 +176,11 @@ export async function importAllRdContacts(): Promise<Lead[]> {
   let totalRows = Number.POSITIVE_INFINITY;
   const leads = new Map<string, Lead>();
 
-  while ((page - 1) * pageSize < totalRows && page <= 200) {
+  while (
+    (page - 1) * pageSize < totalRows &&
+    page <= 20 &&
+    leads.size < MAX_RD_CONTACTS_PER_SYNC
+  ) {
     const url = new URL(
       `${RD_API_BASE}/platform/segmentations/${segmentId}/contacts`,
     );
@@ -188,11 +193,17 @@ export async function importAllRdContacts(): Promise<Lead[]> {
     totalRows = result.totalRows || (page - 1) * pageSize + contacts.length;
 
     contacts.forEach((contact) => {
+      if (leads.size >= MAX_RD_CONTACTS_PER_SYNC) return;
       const lead = normalizeRdContact(contact);
       if (lead?.rdUuid) leads.set(lead.rdUuid, lead);
     });
 
-    if (contacts.length < pageSize) break;
+    if (
+      contacts.length < pageSize ||
+      leads.size >= MAX_RD_CONTACTS_PER_SYNC
+    ) {
+      break;
+    }
     page += 1;
   }
 
