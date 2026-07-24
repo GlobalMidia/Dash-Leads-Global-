@@ -29,7 +29,7 @@ export type ImportConfirmation = {
 type ImportLeadsModalProps = {
   existingLeads: Lead[];
   onClose: () => void;
-  onConfirm: (confirmation: ImportConfirmation) => void;
+  onConfirm: (confirmation: ImportConfirmation) => Promise<void> | void;
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -65,6 +65,7 @@ export function ImportLeadsModal({
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [groupedRows, setGroupedRows] = useState<Set<number>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -83,10 +84,15 @@ export function ImportLeadsModal({
     try {
       const result = parseLeadCsv(text, existingLeads);
       if (!result.headers.length || !result.records.length) {
-        throw new Error("O arquivo não possui registros reconhecíveis.");
+        const invalidDate = result.invalidRows[0];
+        throw new Error(
+          invalidDate
+            ? `Linha ${invalidDate.rowNumber}: ${invalidDate.reason}.`
+            : "O arquivo não possui registros reconhecíveis.",
+        );
       }
-      if (result.records.length > 5000) {
-        throw new Error("Este protótipo aceita até 5.000 registros por arquivo.");
+      if (result.records.length > 1000) {
+        throw new Error("A importação aceita até 1.000 registros por arquivo.");
       }
       setPreview(result);
       setFileName(name);
@@ -325,15 +331,26 @@ export function ImportLeadsModal({
               </table>
             </div>
 
-            {(preview.ignoredRows > 0 || additionalColumns > 0) && (
+            {(preview.ignoredRows > 0 ||
+              preview.invalidRows.length > 0 ||
+              additionalColumns > 0) && (
               <div className="import-review-note">
                 <Info size={14} />
                 <span>
                   {preview.ignoredRows > 0 &&
                     `${preview.ignoredRows} linhas vazias serão ignoradas. `}
+                  {preview.invalidRows.length > 0 &&
+                    `${preview.invalidRows.length} linhas com data inválida serão ignoradas. `}
                   {additionalColumns > 0 &&
                     `${additionalColumns} colunas extras serão mantidas como dados adicionais.`}
                 </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="import-error" role="alert">
+                <AlertTriangle size={16} />
+                {error}
               </div>
             )}
 
@@ -355,17 +372,32 @@ export function ImportLeadsModal({
                 </button>
                 <button
                   className="import-confirm"
-                  onClick={() =>
-                    onConfirm({
-                      fileName,
-                      records: preview.records,
-                      groupedRowNumbers: [...groupedRows],
-                    })
-                  }
+                  disabled={submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    setError(null);
+                    try {
+                      await onConfirm({
+                        fileName,
+                        records: preview.records,
+                        groupedRowNumbers: [...groupedRows],
+                      });
+                    } catch (caught) {
+                      setError(
+                        caught instanceof Error
+                          ? caught.message
+                          : "Não foi possível concluir a importação.",
+                      );
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
                   type="button"
                 >
                   <Upload size={15} />
-                  Importar {preview.records.length} registros
+                  {submitting
+                    ? "Importando..."
+                    : `Importar ${preview.records.length} registros`}
                 </button>
               </div>
             </footer>

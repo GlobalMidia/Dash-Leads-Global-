@@ -2,7 +2,10 @@ import { STATUS_LABELS, type Lead } from "@/types/lead";
 
 function escapeCsv(value: string | number) {
   const normalized = String(value).replace(/\r?\n/g, " ").trim();
-  return `"${normalized.replace(/"/g, '""')}"`;
+  const safeValue = /^[=+\-@\t\r]/.test(normalized)
+    ? `'${normalized}`
+    : normalized;
+  return `"${safeValue.replace(/"/g, '""')}"`;
 }
 
 export function leadsToCsv(leads: Lead[]) {

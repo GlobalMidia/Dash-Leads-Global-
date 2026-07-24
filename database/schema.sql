@@ -1,23 +1,8 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE IF NOT EXISTS leads (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  rd_uuid text NOT NULL UNIQUE,
-  name text NOT NULL,
-  company text NOT NULL DEFAULT '',
-  email text NOT NULL,
-  phone text NOT NULL DEFAULT '',
-  origin text NOT NULL DEFAULT 'RD Station',
-  entered_at timestamptz NOT NULL,
-  status text NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'attended', 'qualified', 'disqualified', 'closed')),
-  notes varchar(280) NOT NULL DEFAULT '',
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS company text NOT NULL DEFAULT '';
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes varchar(280) NOT NULL DEFAULT '';
-
-CREATE INDEX IF NOT EXISTS leads_entered_at_idx ON leads (entered_at DESC);
-CREATE INDEX IF NOT EXISTS leads_status_idx ON leads (status);
-CREATE INDEX IF NOT EXISTS leads_origin_idx ON leads (origin);
+-- Arquivo mantido apenas como orientação para instalações antigas.
+-- O schema atual é versionado em database/migrations e aplicado por:
+--
+--   npm run db:migrate
+--
+-- Não copie este arquivo para o console do Neon. Execute as migrações para
+-- garantir que banco, índices e trilha de auditoria fiquem na mesma versão do
+-- aplicativo.

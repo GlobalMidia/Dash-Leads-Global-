@@ -22,4 +22,19 @@ describe("leads CSV export", () => {
 
     expect(csv).toContain('"Retornar com ""proposta"" na sexta."');
   });
+
+  it("neutralizes spreadsheet formulas in exported text", () => {
+    const csv = leadsToCsv([
+      {
+        ...DEMO_LEADS[0],
+        name: "=HYPERLINK(\"https://example.com\")",
+        phone: "+5511999999999",
+      },
+    ]);
+
+    expect(csv).toContain(
+      `"'=HYPERLINK(""https://example.com"")"`,
+    );
+    expect(csv).toContain(`"'+5511999999999"`);
+  });
 });

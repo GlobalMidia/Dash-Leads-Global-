@@ -43,4 +43,19 @@ describe("CSV lead import", () => {
     });
     expect(result.records[0].enteredAt).toBe(sourceLeads[0].enteredAt);
   });
+
+  it("rejects rows with invalid dates instead of silently using today", () => {
+    const result = parseLeadCsv(
+      "Nome;E-mail;Data de entrada\nAna;ana@empresa.com;31/02/2026",
+      [],
+    );
+
+    expect(result.records).toHaveLength(0);
+    expect(result.invalidRows).toEqual([
+      {
+        rowNumber: 2,
+        reason: "Data de entrada inválida: 31/02/2026",
+      },
+    ]);
+  });
 });

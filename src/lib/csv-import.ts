@@ -1,4 +1,10 @@
 import type { Lead, LeadStatus } from "@/types/lead";
+import {
+  normalizeCompany,
+  normalizeComparableText,
+  normalizeEmail,
+  normalizePhone,
+} from "@/lib/lead-normalization";
 
 export type CsvImportRecord = {
   rowNumber: number;
@@ -31,6 +37,10 @@ export type CsvImportResult = {
   headers: string[];
   records: CsvImportRecord[];
   ignoredRows: number;
+  invalidRows: Array<{
+    rowNumber: number;
+    reason: string;
+  }>;
   mappedFields: string[];
 };
 
@@ -52,27 +62,6 @@ Beatriz Ramos;Norte Engenharia;beatriz@norteengenharia.com.br;(11) 99045-1320;Re
 João Ribeiro;Órbita Sistemas;joao@orbitistemas.com.br;(11) 98711-4062;Google Ads;22/07/2026;Qualificado;Pediu apresentação;Pesquisa institucional;Campinas
 Mariana Souza;Norte Engenharia;mariana.souza@exemplo.com;(11) 98841-2037;Google Ads;21/07/2026;Atendido;Novo formulário da campanha;Pesquisa marca;São Paulo
 Carla Nogueira;Nogueira Varejo;carla@nogueiravarejo.com.br;(21) 99210-7788;Meta Ads;20/07/2026;Pendente;;Remarketing;Rio de Janeiro`;
-
-function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-export function normalizeCompany(value: string) {
-  return normalizeText(value);
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLocaleLowerCase("pt-BR");
-}
-
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
-}
 
 function parseCsvRows(text: string, delimiter: string) {
   const rows: string[][] = [];
@@ -132,10 +121,10 @@ function extractExcelSeparatorDirective(text: string) {
 }
 
 function fieldForHeader(header: string): CanonicalField | null {
-  const normalized = normalizeText(header);
+  const normalized = normalizeComparableText(header);
   return (
     (Object.entries(FIELD_ALIASES).find(([, aliases]) =>
-      aliases.some((alias) => normalizeText(alias) === normalized),
+      aliases.some((alias) => normalizeComparableText(alias) === normalized),
     )?.[0] as CanonicalField | undefined) ?? null
   );
 }
@@ -148,22 +137,37 @@ function parseDate(value: string) {
   if (brazilian) {
     const [, day, month, year, hour = "12", minute = "00", second = "00"] =
       brazilian;
-    return new Date(
-      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:${second}`,
-    ).toISOString();
+    const parsed = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    );
+    const isExactDate =
+      parsed.getFullYear() === Number(year) &&
+      parsed.getMonth() === Number(month) - 1 &&
+      parsed.getDate() === Number(day) &&
+      parsed.getHours() === Number(hour) &&
+      parsed.getMinutes() === Number(minute) &&
+      parsed.getSeconds() === Number(second);
+    return isExactDate ? parsed.toISOString() : null;
   }
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function parseStatus(value: string): LeadStatus {
-  const normalized = normalizeText(value);
+  const normalized = normalizeComparableText(value);
   if (normalized.includes("desqualificado")) return "disqualified";
   if (normalized.includes("qualificado")) return "qualified";
   if (normalized.includes("fechado")) return "closed";
   if (normalized.includes("atendido")) return "attended";
   return "pending";
 }
+
+export { normalizeCompany };
 
 function findMatch(
   candidate: Pick<CsvImportRecord, "company" | "email" | "phone">,
@@ -211,6 +215,7 @@ export function parseLeadCsv(text: string, existingLeads: Lead[]): CsvImportResu
   const mappings = headers.map(fieldForHeader);
   const mappedFields = [...new Set(mappings.filter(Boolean))] as CanonicalField[];
   let ignoredRows = 0;
+  const invalidRows: CsvImportResult["invalidRows"] = [];
   const records: CsvImportRecord[] = [];
 
   for (const [rowIndex, values] of rows.slice(1).entries()) {
@@ -235,6 +240,15 @@ export function parseLeadCsv(text: string, existingLeads: Lead[]): CsvImportResu
       continue;
     }
 
+    const enteredAt = parseDate(canonical.enteredAt || "");
+    if (!enteredAt) {
+      invalidRows.push({
+        rowNumber: rowIndex + 2,
+        reason: `Data de entrada inválida: ${canonical.enteredAt}`,
+      });
+      continue;
+    }
+
     const candidate: CsvImportRecord = {
       rowNumber: rowIndex + 2,
       name: canonical.name || "Contato não informado",
@@ -242,7 +256,7 @@ export function parseLeadCsv(text: string, existingLeads: Lead[]): CsvImportResu
       email: canonical.email || "",
       phone: canonical.phone || "",
       origin: canonical.origin || "Orgânico",
-      enteredAt: parseDate(canonical.enteredAt || ""),
+      enteredAt,
       status: parseStatus(canonical.status || ""),
       notes: canonical.notes || "",
       additionalData,
@@ -268,6 +282,7 @@ export function parseLeadCsv(text: string, existingLeads: Lead[]): CsvImportResu
     headers,
     records,
     ignoredRows,
+    invalidRows,
     mappedFields: mappedFields.map((field) => field),
   };
 }

@@ -20,7 +20,12 @@ Postgres e RD Station Marketing.
 - persistência em Postgres quando `DATABASE_URL` for configurada;
 - importação da segmentação padrão de todos os contatos do RD Station;
 - webhook do RD Station para novas conversões e oportunidades;
-- acesso por senha e cookie HTTP-only quando o banco real estiver ativo.
+- importação CSV persistida no banco, com lote, arquivo de origem, dados extras
+  e agrupamentos sem fusão;
+- trilha de auditoria preparada para registrar alterações por usuário;
+- migrações versionadas executadas automaticamente antes do build;
+- acesso temporário por senha e cookie HTTP-only enquanto o login individual
+  por e-mail está sendo conectado.
 
 ## Executar localmente
 
@@ -42,8 +47,9 @@ npm run check
 ## Banco de dados
 
 1. Crie um Postgres (o Neon da Vercel Marketplace funciona sem servidor).
-2. Execute o arquivo [`database/schema.sql`](database/schema.sql).
-3. Preencha `DATABASE_URL`.
+2. Preencha `DATABASE_URL`.
+3. Execute `npm run db:migrate` ou deixe o `prebuild` aplicar as migrações da
+   pasta [`database/migrations`](database/migrations).
 4. Defina `DASHBOARD_PASSWORD` e gere `DASHBOARD_SESSION_SECRET` com pelo menos
    32 bytes aleatórios.
 
@@ -90,8 +96,7 @@ O projeto não depende de configuração especial de build. Na Vercel:
 1. importe o repositório;
 2. conecte o banco Postgres;
 3. adicione as variáveis da `.env.example`;
-4. execute o SQL do schema uma única vez;
-5. publique;
-6. use o domínio publicado ao configurar o webhook no RD Station.
+4. publique — as migrações pendentes são aplicadas no `prebuild`;
+5. use o domínio publicado ao configurar o webhook no RD Station.
 
 Nunca publique `.env.local`, tokens ou senhas no Git.

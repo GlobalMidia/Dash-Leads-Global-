@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isDashboardAuthorized } from "@/server/dashboard-auth";
-import {
-  updateLeadNotes,
-  updateLeadStatus,
-} from "@/server/lead-repository";
+import { updateLead } from "@/server/lead-repository";
 import { LEAD_STATUSES } from "@/types/lead";
 
 const schema = z
@@ -29,12 +26,7 @@ export async function PATCH(
 
   try {
     const id = (await params).id;
-    let lead = parsed.data.status
-      ? await updateLeadStatus(id, parsed.data.status)
-      : null;
-    if (parsed.data.notes !== undefined) {
-      lead = await updateLeadNotes(id, parsed.data.notes);
-    }
+    const lead = await updateLead(id, parsed.data);
     if (!lead) {
       return NextResponse.json(
         { error: "Lead não encontrado." },

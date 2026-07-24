@@ -39,7 +39,7 @@ import {
 import { ProfilePreferencesModal } from "@/components/profile-preferences-modal";
 import { QuickGuideModal } from "@/components/quick-guide-modal";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
-import { normalizeCompany } from "@/lib/csv-import";
+import { normalizeCompany } from "@/lib/lead-normalization";
 import { leadsToCsv } from "@/lib/export-leads";
 import {
   filterLeads,
@@ -586,7 +586,42 @@ export function LeadDashboard({
     window.location.assign("/login?preview=1");
   }
 
-  function handleImport(confirmation: ImportConfirmation) {
+  async function handleImport(confirmation: ImportConfirmation) {
+    if (mode === "live") {
+      const response = await fetch("/api/imports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(confirmation),
+      });
+      const result = (await response.json()) as {
+        imported?: number;
+        grouped?: number;
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error ?? "Falha ao importar os leads.");
+      }
+
+      const leadsResponse = await fetch("/api/leads");
+      const leadsData = (await leadsResponse.json()) as {
+        leads?: Lead[];
+        error?: string;
+      };
+      if (!leadsResponse.ok || !leadsData.leads) {
+        throw new Error(
+          leadsData.error ?? "A importação foi salva, mas a lista não atualizou.",
+        );
+      }
+
+      setLeads(leadsData.leads);
+      setPage(1);
+      setImportOpen(false);
+      setNotice(
+        `${result.imported ?? confirmation.records.length} registros importados; ${result.grouped ?? 0} agrupados sem fusão.`,
+      );
+      return;
+    }
+
     const importedAt = new Date().toISOString();
     const groupedRows = new Set(confirmation.groupedRowNumbers);
     const groupByMatchedLead = new Map<string, string>();
