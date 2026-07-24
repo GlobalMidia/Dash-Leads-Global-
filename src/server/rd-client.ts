@@ -146,32 +146,32 @@ function extractSegmentations(payload: unknown): RdSegmentation[] {
   return [];
 }
 
-async function allContactsSegmentationId() {
+async function leadsFunnelSegmentationId() {
   const result = await rdGet(`${RD_API_BASE}/platform/segmentations`);
   const segmentations = extractSegmentations(result.payload);
-  const allContacts = segmentations.find((segmentation) => {
+  const leadsFunnel = segmentations.find((segmentation) => {
     const name = segmentation.name
       ?.normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
     return Boolean(
       segmentation.standard &&
-        name?.includes("todos os contatos da base de leads"),
+        name?.includes("leads (estagio no funil)"),
     );
   });
 
-  if (!allContacts?.id) {
+  if (!leadsFunnel?.id) {
     throw new Error(
-      "O RD Station não retornou a segmentação padrão ‘Todos os contatos da base de Leads’. Verifique se a conta possui acesso à base de Leads.",
+      "O RD Station não retornou a segmentação padrão ‘Leads (estágio no funil)’ para esta conta.",
     );
   }
 
-  return String(allContacts.id);
+  return String(leadsFunnel.id);
 }
 
 export async function importAllRdContacts(): Promise<Lead[]> {
   const pageSize = 125;
-  const segmentId = await allContactsSegmentationId();
+  const segmentId = await leadsFunnelSegmentationId();
   let page = 1;
   let totalRows = Number.POSITIVE_INFINITY;
   const leads = new Map<string, Lead>();
