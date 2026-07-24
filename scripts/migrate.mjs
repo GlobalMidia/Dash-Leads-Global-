@@ -20,6 +20,19 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .sort();
 const client = new Client({ connectionString });
 
+function checksumFor(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function equivalentLineEndingChecksums(migration) {
+  const normalized = migration.replace(/\r\n/g, "\n");
+  return new Set([
+    checksumFor(migration),
+    checksumFor(normalized),
+    checksumFor(normalized.replace(/\n/g, "\r\n")),
+  ]);
+}
+
 await client.connect();
 
 try {
@@ -36,7 +49,8 @@ try {
       path.join(migrationsDirectory, fileName),
       "utf8",
     );
-    const checksum = createHash("sha256").update(migration).digest("hex");
+    const checksum = checksumFor(migration.replace(/\r\n/g, "\n"));
+    const acceptedChecksums = equivalentLineEndingChecksums(migration);
     const {
       rows: [appliedMigration],
     } = await client.query(
@@ -45,7 +59,7 @@ try {
     );
 
     if (appliedMigration) {
-      if (appliedMigration.checksum !== checksum) {
+      if (!acceptedChecksums.has(appliedMigration.checksum)) {
         throw new Error(
           `A migração ${fileName} foi alterada depois de aplicada.`,
         );
