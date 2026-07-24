@@ -31,7 +31,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ImportLeadsModal,
   type ImportConfirmation,
@@ -300,6 +300,7 @@ export function LeadDashboard({
   const [page, setPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const syncStopped = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
@@ -548,6 +549,12 @@ export function LeadDashboard({
     }
   }
 
+  useEffect(() => {
+    return () => {
+      syncStopped.current = true;
+    };
+  }, []);
+
   async function handleSync() {
     if (mode === "demo") {
       setNotice(
@@ -556,19 +563,38 @@ export function LeadDashboard({
       return;
     }
 
+    syncStopped.current = false;
     setSyncing(true);
     try {
-      const response = await fetch("/api/rd/sync", { method: "POST" });
-      const data = (await response.json()) as {
-        imported?: number;
-        error?: string;
-      };
-      if (!response.ok) throw new Error(data.error ?? "Falha na sincronização.");
+      let hasMore = true;
+      while (hasMore && !syncStopped.current) {
+        const response = await fetch("/api/rd/sync", { method: "POST" });
+        const data = (await response.json()) as {
+          imported?: number;
+          hasMore?: boolean;
+          processed?: number;
+          total?: number | null;
+          error?: string;
+        };
+        if (!response.ok) throw new Error(data.error ?? "Falha na sincronização.");
 
-      const leadsResponse = await fetch("/api/leads");
-      const leadsData = (await leadsResponse.json()) as { leads: Lead[] };
-      setLeads(leadsData.leads);
-      setNotice(`${data.imported ?? 0} contatos sincronizados com o RD Station.`);
+        const leadsResponse = await fetch("/api/leads");
+        const leadsData = (await leadsResponse.json()) as { leads: Lead[] };
+        setLeads(leadsData.leads);
+        hasMore = Boolean(data.hasMore);
+        const progress = data.total
+          ? `${data.processed ?? 0} de ${data.total}`
+          : `${data.processed ?? 0}`;
+        setNotice(
+          hasMore
+            ? `RD Station: ${progress} processados. Próximo lote em 1 minuto.`
+            : `Sincronização concluída: ${progress} contatos processados.`,
+        );
+
+        if (hasMore && !syncStopped.current) {
+          await new Promise((resolve) => window.setTimeout(resolve, 60_000));
+        }
+      }
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Falha na sincronização.",

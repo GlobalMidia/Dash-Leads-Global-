@@ -2,10 +2,11 @@ import "server-only";
 
 import { extractRdContacts, normalizeRdContact } from "@/lib/rd/normalize";
 import { loadStoredRdTokens, storeRdTokens } from "@/server/rd-oauth";
+import { getSql } from "@/server/db";
 import type { Lead } from "@/types/lead";
 
 const RD_API_BASE = "https://api.rd.services";
-const MAX_RD_CONTACTS_PER_SYNC = 500;
+const RD_BATCH_SIZE = 60;
 
 type TokenResponse = {
   access_token?: string;
@@ -169,43 +170,86 @@ async function leadsFunnelSegmentationId() {
   return String(leadsFunnel.id);
 }
 
-export async function importAllRdContacts(): Promise<Lead[]> {
-  const pageSize = 125;
-  const segmentId = await leadsFunnelSegmentationId();
-  let page = 1;
-  let totalRows = Number.POSITIVE_INFINITY;
-  const leads = new Map<string, Lead>();
+export type RdSyncBatch = {
+  contacts: Lead[];
+  hasMore: boolean;
+  page: number;
+  processed: number;
+  total: number | null;
+};
 
-  while (
-    (page - 1) * pageSize < totalRows &&
-    page <= 20 &&
-    leads.size < MAX_RD_CONTACTS_PER_SYNC
-  ) {
-    const url = new URL(
-      `${RD_API_BASE}/platform/segmentations/${segmentId}/contacts`,
-    );
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("page_size", String(pageSize));
-    url.searchParams.set("order", "last_conversion_date:desc");
+type SyncCursor = {
+  segmentation_id: string | null;
+  next_page: number;
+  imported_count: number;
+  status: "idle" | "running" | "completed" | "failed";
+};
 
+/** Busca uma única página; o cursor persistido permite retomar sem timeout. */
+export async function importNextRdBatch(): Promise<RdSyncBatch> {
+  const sql = getSql();
+  const cursorRows = (await sql`
+    SELECT segmentation_id, next_page, imported_count, status
+    FROM rd_sync_cursor
+    WHERE account_identifier = 'primary'
+  `) as SyncCursor[];
+  const cursor = cursorRows[0];
+  const restarting = !cursor || cursor.status === "completed";
+  const segmentId = restarting
+    ? await leadsFunnelSegmentationId()
+    : cursor.segmentation_id ?? (await leadsFunnelSegmentationId());
+  const page = restarting ? 1 : Math.max(cursor.next_page, 1);
+  const alreadyImported = restarting ? 0 : cursor.imported_count;
+  const url = new URL(`${RD_API_BASE}/platform/segmentations/${segmentId}/contacts`);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("page_size", String(RD_BATCH_SIZE));
+  url.searchParams.set("order", "last_conversion_date:desc");
+
+  try {
     const result = await rdGet(url.toString());
-    const contacts = extractRdContacts(result.payload);
-    totalRows = result.totalRows || (page - 1) * pageSize + contacts.length;
-
-    contacts.forEach((contact) => {
-      if (leads.size >= MAX_RD_CONTACTS_PER_SYNC) return;
+    const sourceContacts = extractRdContacts(result.payload);
+    const byUuid = new Map<string, Lead>();
+    sourceContacts.forEach((contact) => {
       const lead = normalizeRdContact(contact);
-      if (lead?.rdUuid) leads.set(lead.rdUuid, lead);
+      if (lead?.rdUuid) byUuid.set(lead.rdUuid, lead);
     });
+    const total = result.totalRows > 0 ? result.totalRows : null;
+    const hasMore = total ? page * RD_BATCH_SIZE < total : sourceContacts.length === RD_BATCH_SIZE;
+    const processed = alreadyImported + sourceContacts.length;
 
-    if (
-      contacts.length < pageSize ||
-      leads.size >= MAX_RD_CONTACTS_PER_SYNC
-    ) {
-      break;
-    }
-    page += 1;
+    await sql`
+      INSERT INTO rd_sync_cursor (
+        account_identifier, segmentation_id, next_page, total_rows,
+        imported_count, status, last_error, started_at, updated_at, completed_at
+      ) VALUES (
+        'primary', ${segmentId}, ${hasMore ? page + 1 : page}, ${total},
+        ${processed}, ${hasMore ? "running" : "completed"}, NULL, NOW(), NOW(),
+        ${hasMore ? null : new Date().toISOString()}::timestamptz
+      )
+      ON CONFLICT (account_identifier) DO UPDATE SET
+        segmentation_id = EXCLUDED.segmentation_id,
+        next_page = EXCLUDED.next_page,
+        total_rows = EXCLUDED.total_rows,
+        imported_count = EXCLUDED.imported_count,
+        status = EXCLUDED.status,
+        last_error = NULL,
+        started_at = CASE WHEN rd_sync_cursor.status = 'completed' THEN NOW() ELSE rd_sync_cursor.started_at END,
+        updated_at = NOW(),
+        completed_at = EXCLUDED.completed_at
+    `;
+    return { contacts: [...byUuid.values()], hasMore, page, processed, total };
+  } catch (error) {
+    await sql`
+      INSERT INTO rd_sync_cursor (
+        account_identifier, segmentation_id, next_page, imported_count,
+        status, last_error, updated_at
+      ) VALUES (
+        'primary', ${segmentId}, ${page}, ${alreadyImported}, 'failed',
+        ${error instanceof Error ? error.message : "Falha ao consultar o RD Station."}, NOW()
+      )
+      ON CONFLICT (account_identifier) DO UPDATE SET
+        status = 'failed', last_error = EXCLUDED.last_error, updated_at = NOW()
+    `;
+    throw error;
   }
-
-  return [...leads.values()];
 }

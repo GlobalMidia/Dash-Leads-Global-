@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDashboardAuthorized } from "@/server/dashboard-auth";
 import { isLiveMode, upsertLeads } from "@/server/lead-repository";
-import { importAllRdContacts, isRdConfigured } from "@/server/rd-client";
+import { importNextRdBatch, isRdConfigured } from "@/server/rd-client";
 
 export const maxDuration = 60;
 
@@ -20,9 +20,15 @@ export async function POST() {
   }
 
   try {
-    const contacts = await importAllRdContacts();
-    const imported = await upsertLeads(contacts);
-    return NextResponse.json({ imported });
+    const batch = await importNextRdBatch();
+    const imported = await upsertLeads(batch.contacts);
+    return NextResponse.json({
+      imported,
+      hasMore: batch.hasMore,
+      page: batch.page,
+      processed: batch.processed,
+      total: batch.total,
+    });
   } catch (error) {
     console.error("Falha na sincronização com o RD Station:", error);
     return NextResponse.json(
