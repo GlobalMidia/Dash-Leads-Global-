@@ -39,6 +39,7 @@ import {
 import { ProfilePreferencesModal } from "@/components/profile-preferences-modal";
 import { QuickGuideModal } from "@/components/quick-guide-modal";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
+import { neonAuthClient } from "@/lib/neon-auth-client";
 import { normalizeCompany } from "@/lib/lead-normalization";
 import { leadsToCsv } from "@/lib/export-leads";
 import {
@@ -60,6 +61,12 @@ type DashboardProps = {
   initialLeads: Lead[];
   mode: "demo" | "live";
   rdConfigured: boolean;
+  neonAuthEnabled: boolean;
+  user: {
+    name: string;
+    email: string;
+    initials: string;
+  };
 };
 
 const DEFAULT_FILTERS: DashboardFilters = {
@@ -72,12 +79,6 @@ const DEFAULT_FILTERS: DashboardFilters = {
 
 const PAGE_SIZE = 8;
 const ORIGIN_COLORS = ["#2f7df4", "#17b6a4", "#ff9f43", "#7257d8", "#e95e6b"];
-const PROTOTYPE_USER = {
-  name: "Marina Costa",
-  email: "marina@globalmidia.digital",
-  initials: "MC",
-};
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -282,13 +283,15 @@ export function LeadDashboard({
   initialLeads,
   mode,
   rdConfigured,
+  neonAuthEnabled,
+  user,
 }: DashboardProps) {
   const {
     preferences,
     setPreferences,
     resetPreferences,
     resolvedTheme,
-  } = useProfilePreferences(PROTOTYPE_USER.email);
+  } = useProfilePreferences(user.email);
   const [leads, setLeads] = useState(initialLeads);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -427,8 +430,8 @@ export function LeadDashboard({
                   description: notes
                     ? "O conteúdo das observações foi atualizado."
                     : "As observações do lead foram removidas.",
-                  actor: PROTOTYPE_USER.name,
-                  actorEmail: PROTOTYPE_USER.email,
+                  actor: user.name,
+                  actorEmail: user.email,
                   occurredAt,
                 },
                 ...(lead.history ?? []),
@@ -509,8 +512,8 @@ export function LeadDashboard({
                   id: `status-${occurredAt}`,
                   title: "Qualificação alterada",
                   description: `O lead foi marcado como ${STATUS_LABELS[status].toLocaleLowerCase("pt-BR")}.`,
-                  actor: PROTOTYPE_USER.name,
-                  actorEmail: PROTOTYPE_USER.email,
+                  actor: user.name,
+                  actorEmail: user.email,
                   occurredAt,
                 },
                 ...(lead.history ?? []),
@@ -574,7 +577,11 @@ export function LeadDashboard({
   }
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST", redirect: "manual" });
+    if (neonAuthEnabled) {
+      await neonAuthClient.signOut();
+    } else {
+      await fetch("/api/auth/logout", { method: "POST", redirect: "manual" });
+    }
     window.location.assign("/login");
   }
 
@@ -656,8 +663,8 @@ export function LeadDashboard({
                 title: "Empresa agrupada sem fusão",
                 description:
                   "A empresa foi confirmada como a mesma de outro registro. Os leads permanecem separados.",
-                actor: PROTOTYPE_USER.name,
-                actorEmail: PROTOTYPE_USER.email,
+                actor: user.name,
+                actorEmail: user.email,
                 occurredAt: importedAt,
               },
             ]
@@ -666,8 +673,8 @@ export function LeadDashboard({
           id: `import-${record.rowNumber}-${importedAt}`,
           title: "Lead importado",
           description: `Linha ${record.rowNumber} do arquivo ${confirmation.fileName}.`,
-          actor: PROTOTYPE_USER.name,
-          actorEmail: PROTOTYPE_USER.email,
+          actor: user.name,
+          actorEmail: user.email,
           occurredAt: importedAt,
         },
       ];
@@ -689,7 +696,7 @@ export function LeadDashboard({
           label: "Importação CSV",
           fileName: confirmation.fileName,
           importedAt,
-          importedBy: PROTOTYPE_USER.email,
+          importedBy: user.email,
         },
         companyGroupId: groupId,
         duplicateStatus: record.match
@@ -717,8 +724,8 @@ export function LeadDashboard({
               id: `grouped-existing-${lead.id}-${importedAt}`,
               title: "Empresa agrupada sem fusão",
               description: `Agrupamento confirmado durante a importação de ${confirmation.fileName}.`,
-              actor: PROTOTYPE_USER.name,
-              actorEmail: PROTOTYPE_USER.email,
+              actor: user.name,
+              actorEmail: user.email,
               occurredAt: importedAt,
             },
             ...(lead.history ?? []),
@@ -771,7 +778,7 @@ export function LeadDashboard({
             onClick={() => setPreferencesOpen(true)}
             type="button"
           >
-            {PROTOTYPE_USER.initials}
+            {user.initials}
           </button>
           <button className="icon-button" aria-label="Notificações" type="button">
             <Bell size={18} strokeWidth={1.9} />
@@ -786,10 +793,10 @@ export function LeadDashboard({
             }
             type="button"
           >
-            <span>{PROTOTYPE_USER.initials}</span>
+            <span>{user.initials}</span>
             <div>
-              <strong>{PROTOTYPE_USER.name}</strong>
-              <small>{PROTOTYPE_USER.email}</small>
+              <strong>{user.name}</strong>
+              <small>{user.email}</small>
             </div>
             {mode === "live" && <LogOut className="logout-icon" size={14} />}
           </button>
@@ -835,7 +842,7 @@ export function LeadDashboard({
           onClick={() => setPreferencesOpen(true)}
           type="button"
         >
-          {PROTOTYPE_USER.initials}
+          {user.initials}
         </button>
       </aside>
 
@@ -1631,7 +1638,7 @@ export function LeadDashboard({
 
       {preferencesOpen && (
         <ProfilePreferencesModal
-          email={PROTOTYPE_USER.email}
+          email={user.email}
           onChange={setPreferences}
           onClose={() => setPreferencesOpen(false)}
           onLogout={mode === "live" ? () => void handleLogout() : undefined}

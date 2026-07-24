@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isDashboardAuthorized } from "@/server/dashboard-auth";
+import {
+  getDashboardUser,
+  isDashboardAuthorized,
+} from "@/server/dashboard-auth";
 import { updateLead } from "@/server/lead-repository";
 import { LEAD_STATUSES } from "@/types/lead";
 
@@ -26,7 +29,12 @@ export async function PATCH(
 
   try {
     const id = (await params).id;
-    const lead = await updateLead(id, parsed.data);
+    const actor = await getDashboardUser();
+    const lead = await updateLead(id, parsed.data, {
+      userId: actor?.id,
+      email: actor?.email,
+      name: actor?.name,
+    });
     if (!lead) {
       return NextResponse.json(
         { error: "Lead não encontrado." },

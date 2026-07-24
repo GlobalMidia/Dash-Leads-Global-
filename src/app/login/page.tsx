@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import {
   authIsConfigured,
+  isIndividualAuthEnabled,
   isDashboardAuthorized,
 } from "@/server/dashboard-auth";
 
@@ -15,5 +16,11 @@ export default async function LoginPage({
 }) {
   const preview = (await searchParams).preview === "1";
   if (!preview && (await isDashboardAuthorized())) redirect("/");
-  return <LoginForm configured={authIsConfigured()} preview={preview} />;
+  return (
+    <LoginForm
+      configured={authIsConfigured()}
+      individualAuthEnabled={isIndividualAuthEnabled()}
+      preview={preview}
+    />
+  );
 }

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isDashboardAuthorized } from "@/server/dashboard-auth";
+import {
+  getDashboardUser,
+  isDashboardAuthorized,
+} from "@/server/dashboard-auth";
 import { importCsvLeads } from "@/server/lead-repository";
 import { LEAD_STATUSES } from "@/types/lead";
 
@@ -70,7 +73,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await importCsvLeads(parsed.data);
+    const actor = await getDashboardUser();
+    const result = await importCsvLeads(parsed.data, {
+      userId: actor?.id,
+      email: actor?.email,
+      name: actor?.name,
+    });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return NextResponse.json(

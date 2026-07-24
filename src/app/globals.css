@@ -1504,9 +1504,52 @@ td {
 .login-card form > label {
   display: grid;
   gap: 7px;
+  margin-top: 13px;
   color: #536078;
   font-size: 10px;
   font-weight: 700;
+}
+
+.login-card form > label > input {
+  height: 46px;
+  border: 1px solid #dfe5ee;
+  border-radius: 11px;
+  outline: 0;
+  color: #344057;
+  background: #fafbfd;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.login-card form > label > input:focus {
+  border-color: #9ec4fb;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(47 125 244 / 9%);
+}
+
+.login-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  border-radius: 11px;
+  background: #f0f3f8;
+  padding: 3px;
+}
+
+.login-mode-switch button {
+  min-height: 35px;
+  border: 0;
+  border-radius: 8px;
+  color: #758198;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.login-mode-switch button.is-active {
+  color: #2f6cc5;
+  background: #fff;
+  box-shadow: 0 2px 7px rgb(29 44 68 / 9%);
 }
 
 .password-field {
@@ -1641,6 +1684,10 @@ td {
   color: #3266a8;
   background: #f6faff;
   padding: 12px;
+}
+
+.login-card form .domain-rule {
+  margin-top: 13px;
 }
 
 .domain-rule svg {

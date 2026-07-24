@@ -3,12 +3,20 @@ import { z } from "zod";
 import {
   authIsConfigured,
   createDashboardSession,
+  isIndividualAuthEnabled,
   verifyPassword,
 } from "@/server/dashboard-auth";
 
 const schema = z.object({ password: z.string().min(1).max(256) });
 
 export async function POST(request: Request) {
+  if (isIndividualAuthEnabled()) {
+    return NextResponse.json(
+      { error: "Use o login individual por e-mail e senha." },
+      { status: 409 },
+    );
+  }
+
   if (!authIsConfigured()) {
     return NextResponse.json(
       { error: "A proteção do dashboard ainda não foi configurada." },

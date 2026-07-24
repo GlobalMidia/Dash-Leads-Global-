@@ -6,9 +6,41 @@ import {
   isLiveMode,
   isPublicPrototypeMode,
 } from "@/server/lead-repository";
+import { getSql } from "@/server/db";
+import { getNeonAuth, isNeonAuthConfigured } from "@/server/neon-auth";
 
 const COOKIE_NAME = "global_dashboard_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12;
+
+export type DashboardUser = {
+  id?: string;
+  authUserId?: string;
+  email: string;
+  name: string;
+  initials: string;
+};
+
+const DEMO_USER: DashboardUser = {
+  email: "marina@globalmidia.digital",
+  name: "Marina Costa",
+  initials: "MC",
+};
+
+function makeInitials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "GM"
+  );
+}
+
+function isCorporateEmail(email: string) {
+  return email.trim().toLowerCase().endsWith("@globalmidia.digital");
+}
 
 function credentials() {
   return {
@@ -32,18 +64,65 @@ function signature(expiresAt: string, secret: string) {
 
 export function authIsRequired() {
   if (isPublicPrototypeMode()) return false;
+  if (isNeonAuthConfigured()) return true;
   const { password, secret } = credentials();
   return Boolean(password || secret || isLiveMode());
 }
 
 export function authIsConfigured() {
   if (isPublicPrototypeMode()) return false;
+  if (isNeonAuthConfigured()) return true;
   const { password, secret } = credentials();
   return Boolean(password && secret);
 }
 
+export function isIndividualAuthEnabled() {
+  return !isPublicPrototypeMode() && isNeonAuthConfigured();
+}
+
+async function getIndividualDashboardUser(): Promise<DashboardUser | null> {
+  const { data } = await getNeonAuth().getSession();
+  const user = data?.user;
+  const email = user?.email?.trim().toLowerCase();
+  if (!user || !email || !isCorporateEmail(email)) return null;
+
+  const name = user.name?.trim() || email.split("@")[0];
+  const dashboardUser: DashboardUser = {
+    authUserId: user.id,
+    email,
+    name,
+    initials: makeInitials(name),
+  };
+
+  if (!isLiveMode()) return dashboardUser;
+
+  const sql = getSql();
+  const rows = (await sql`
+    INSERT INTO application_users (auth_user_id, email, name, last_login_at)
+    VALUES (${user.id}, ${email}, ${name}, NOW())
+    ON CONFLICT (auth_user_id)
+    DO UPDATE SET
+      email = EXCLUDED.email,
+      name = EXCLUDED.name,
+      last_login_at = EXCLUDED.last_login_at
+    RETURNING id::text
+  `) as Array<{ id: string }>;
+
+  return { ...dashboardUser, id: rows[0]?.id };
+}
+
+export async function getDashboardUser(): Promise<DashboardUser | null> {
+  if (isPublicPrototypeMode() || !authIsRequired()) return DEMO_USER;
+  if (isIndividualAuthEnabled()) return getIndividualDashboardUser();
+
+  return (await getSharedPasswordAuthorization()) ? DEMO_USER : null;
+}
+
 export async function isDashboardAuthorized() {
-  if (!authIsRequired()) return true;
+  return Boolean(await getDashboardUser());
+}
+
+async function getSharedPasswordAuthorization() {
   const { secret } = credentials();
   if (!secret) return false;
 
