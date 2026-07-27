@@ -6,7 +6,9 @@ import { getSql } from "@/server/db";
 import type { Lead } from "@/types/lead";
 
 const RD_API_BASE = "https://api.rd.services";
-const RD_BATCH_SIZE = 60;
+// Dois contatos por requisição, uma requisição por segundo = 120 contatos/min.
+// Isso mantém margem no limite de 120 requisições/min do RD.
+const RD_BATCH_SIZE = 2;
 
 type TokenResponse = {
   access_token?: string;

@@ -567,6 +567,7 @@ export function LeadDashboard({
     setSyncing(true);
     try {
       let hasMore = true;
+      let batchesSinceRefresh = 0;
       while (hasMore && !syncStopped.current) {
         const response = await fetch("/api/rd/sync", { method: "POST" });
         const data = (await response.json()) as {
@@ -578,23 +579,29 @@ export function LeadDashboard({
         };
         if (!response.ok) throw new Error(data.error ?? "Falha na sincronização.");
 
-        const leadsResponse = await fetch("/api/leads");
-        const leadsData = (await leadsResponse.json()) as { leads: Lead[] };
-        setLeads(leadsData.leads);
         hasMore = Boolean(data.hasMore);
+        batchesSinceRefresh += 1;
+        // A cada segundo chegam apenas dois contatos. Recarregar a base
+        // inteira a cada lote seria mais pesado que a própria sincronização.
+        if (!hasMore || batchesSinceRefresh >= 30) {
+          const leadsResponse = await fetch("/api/leads");
+          const leadsData = (await leadsResponse.json()) as { leads: Lead[] };
+          setLeads(leadsData.leads);
+          batchesSinceRefresh = 0;
+        }
         const progress = data.total
           ? `${data.processed ?? 0} de ${data.total}`
           : `${data.processed ?? 0}`;
         setNotice(
           hasMore
-            ? `RD Station: ${progress} processados. Próximo lote em 30 segundos.`
+            ? `RD Station: ${progress} processados. Próximo lote em 1 segundo.`
             : `Sincronização concluída: ${progress} contatos processados.`,
         );
 
         if (hasMore && !syncStopped.current) {
-          // Cada lote tem até 60 contatos. Um lote a cada 30 segundos equivale
-          // a 120 contatos por minuto, mantendo apenas 2 chamadas/minuto à API.
-          await new Promise((resolve) => window.setTimeout(resolve, 30_000));
+          // Um lote de até dois contatos por segundo equivale a 120 contatos
+          // por minuto, usando 60 chamadas/minuto e mantendo margem no RD.
+          await new Promise((resolve) => window.setTimeout(resolve, 1_000));
         }
       }
     } catch (error) {
