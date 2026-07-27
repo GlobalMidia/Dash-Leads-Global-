@@ -154,7 +154,10 @@ export async function listLeads(): Promise<Lead[]> {
 
   const sql = getSql();
   const rows = (await sql.query(
-    `${leadSelect} ORDER BY l.entered_at DESC LIMIT 2000`,
+    // O RD pode devolver dezenas de milhares de contatos. O painel faz a
+    // paginação visual no navegador; limitar a consulta aqui fazia o número
+    // ficar preso exatamente em 2.000, mesmo quando a sincronização continuava.
+    `${leadSelect} ORDER BY l.entered_at DESC`,
   )) as DatabaseRow[];
   return rows.map((row) => mapRow(row));
 }
