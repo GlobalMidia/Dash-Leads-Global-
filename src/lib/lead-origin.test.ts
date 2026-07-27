@@ -10,8 +10,8 @@ describe("lead origin normalization", () => {
     ["Indicação de cliente", "Recomendação"],
     ["Referral", "Recomendação"],
     ["Busca orgânica", "Orgânico"],
-    ["Landing Page", "Orgânico"],
-    ["", "Orgânico"],
+    ["Landing Page", "Não identificado"],
+    ["", "Não identificado"],
   ])("maps %s to %s", (input, expected) => {
     expect(normalizeLeadOrigin(input)).toBe(expected);
   });

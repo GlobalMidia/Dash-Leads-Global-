@@ -17,6 +17,19 @@ function stringValue(...values: unknown[]) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizedValue(value: unknown) {
+  return typeof value === "string"
+    ? value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR")
+    : "";
+}
+
+function isInternalEmail(email: string) {
+  return email.toLocaleLowerCase("pt-BR").endsWith("@globalmidia.digital");
+}
+
 function firstPhone(contact: UnknownRecord) {
   const mobile = contact.mobile_phone;
   const phone = contact.personal_phone;
@@ -33,7 +46,14 @@ function firstPhone(contact: UnknownRecord) {
     if (normalized) return normalized;
   }
 
-  return stringValue(mobile, phone, contact.phone, contact.whatsapp);
+  return stringValue(
+    mobile,
+    phone,
+    contact.business_phone,
+    contact.phone,
+    contact.whatsapp,
+    contact.phone_number,
+  );
 }
 
 function safeIsoDate(value: unknown) {
@@ -54,18 +74,62 @@ export function normalizeRdContact(input: unknown): Lead | null {
     ? asRecord(root.contact)
     : root;
   const funnel = asRecord(contact.funnel);
+  const firstConversion = asRecord(contact.first_conversion);
   const company = asRecord(contact.company);
   const organization = asRecord(contact.organization);
   const email = stringValue(contact.email, root.email);
   const rdUuid = stringValue(contact.uuid, contact.id, root.uuid, root.id);
 
-  if (!email || !rdUuid) return null;
+  if (!email || !rdUuid || isInternalEmail(email)) return null;
 
   const enteredAt = safeIsoDate(
-    contact.last_conversion_date ??
+    contact.first_conversion_date ??
+      firstConversion.created_at ??
       contact.created_at ??
-      root.event_timestamp ??
-      root.created_at,
+      root.created_at ??
+      contact.last_conversion_date ??
+      root.event_timestamp,
+  );
+
+  const stage = stringValue(
+    contact.lifecycle_stage,
+    contact.funnel_stage,
+    contact.stage,
+    contact.status,
+    contact.qualification,
+    funnel.stage,
+    funnel.stage_name,
+    funnel.name,
+  );
+  const stageText = normalizedValue(stage);
+  const status =
+    root.event_type === "WEBHOOK.MARKED_OPPORTUNITY" ||
+    ["qualified", "qualificado", "oportunidade", "opportunity", "mql", "sql"].some((term) =>
+      stageText.includes(term),
+    )
+      ? "qualified"
+      : ["closed", "fechado", "ganho", "won", "cliente", "customer"].some((term) =>
+            stageText.includes(term),
+          )
+        ? "closed"
+        : ["lost", "perdido", "desqualificado", "discarded"].some((term) =>
+              stageText.includes(term),
+            )
+          ? "disqualified"
+          : ["attended", "atendido", "contacted", "contatado"].some((term) =>
+                stageText.includes(term),
+              )
+            ? "attended"
+            : "pending";
+
+  const rawOrigin = stringValue(
+    funnel.origin,
+    contact.traffic_source,
+    contact.source,
+    contact.utm_source,
+    firstConversion.source,
+    firstConversion.channel,
+    root.event_identifier,
   );
 
   return {
@@ -74,27 +138,29 @@ export function normalizeRdContact(input: unknown): Lead | null {
     name: stringValue(contact.name, contact.first_name, email),
     company: stringValue(
       company.name,
+      company.company_name,
       organization.name,
+      organization.company_name,
       contact.company_name,
+      contact.organization_name,
       root.company_name,
     ),
     email,
     phone: firstPhone(contact),
     origin: normalizeLeadOrigin(
-      stringValue(
-        funnel.origin,
-        contact.traffic_source,
-        contact.source,
-        root.event_identifier,
-      ),
+      rawOrigin,
     ),
     enteredAt,
-    status:
-      root.event_type === "WEBHOOK.MARKED_OPPORTUNITY"
-        ? "qualified"
-        : "pending",
+    status,
     notes: "",
     updatedAt: new Date().toISOString(),
+    additionalData: {
+      ...(stage ? { rdStage: stage } : {}),
+      ...(rawOrigin ? { rdOrigin: rawOrigin } : {}),
+      ...(contact.last_conversion_date
+        ? { rdLastConversionAt: String(contact.last_conversion_date) }
+        : {}),
+    },
   };
 }
 

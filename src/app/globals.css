@@ -1018,6 +1018,27 @@ td {
   font-weight: 650;
 }
 
+.origin-select {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #e5e9f0;
+  border-radius: 7px;
+  color: #69758a;
+  background: #f9fafc;
+  padding: 0 7px;
+}
+
+.origin-select select {
+  max-width: 112px;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  padding: 5px 0;
+  font-size: 9px;
+  font-weight: 650;
+}
+
 .date-value {
   color: #68758a;
 }

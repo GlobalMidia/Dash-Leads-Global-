@@ -5,14 +5,21 @@ import {
   isDashboardAuthorized,
 } from "@/server/dashboard-auth";
 import { updateLead } from "@/server/lead-repository";
+import { LEAD_ORIGINS } from "@/lib/lead-origin";
 import { LEAD_STATUSES } from "@/types/lead";
 
 const schema = z
   .object({
     status: z.enum(LEAD_STATUSES).optional(),
+    origin: z.enum(LEAD_ORIGINS).optional(),
     notes: z.string().trim().max(280).optional(),
   })
-  .refine((value) => value.status !== undefined || value.notes !== undefined);
+  .refine(
+    (value) =>
+      value.status !== undefined ||
+      value.origin !== undefined ||
+      value.notes !== undefined,
+  );
 
 export async function PATCH(
   request: Request,

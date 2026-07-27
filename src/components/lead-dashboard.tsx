@@ -41,6 +41,7 @@ import { QuickGuideModal } from "@/components/quick-guide-modal";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import { neonAuthClient } from "@/lib/neon-auth-client";
 import { normalizeCompany } from "@/lib/lead-normalization";
+import { LEAD_ORIGINS } from "@/lib/lead-origin";
 import { leadsToCsv } from "@/lib/export-leads";
 import {
   filterLeads,
@@ -255,6 +256,33 @@ function StatusSelect({
         {LEAD_STATUSES.map((option) => (
           <option key={option} value={option}>
             {STATUS_LABELS[option]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function OriginSelect({
+  origin,
+  disabled,
+  onChange,
+}: {
+  origin: Lead["origin"];
+  disabled: boolean;
+  onChange: (origin: Lead["origin"]) => void;
+}) {
+  return (
+    <label className="origin-select">
+      <select
+        aria-label="Alterar origem do lead"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as Lead["origin"])}
+        value={origin}
+      >
+        {LEAD_ORIGINS.map((option) => (
+          <option key={option} value={option}>
+            {option}
           </option>
         ))}
       </select>
@@ -610,6 +638,55 @@ export function LeadDashboard({
       );
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleOriginChange(id: string, origin: Lead["origin"]) {
+    const before = leads;
+    const occurredAt = new Date().toISOString();
+    setLeads((current) =>
+      current.map((lead) =>
+        lead.id === id
+          ? {
+              ...lead,
+              origin,
+              updatedAt: occurredAt,
+              history: [
+                {
+                  id: `origin-${occurredAt}`,
+                  title: "Origem atualizada",
+                  description: `A origem foi alterada para ${origin}.`,
+                  actor: user.name,
+                  actorEmail: user.email,
+                  occurredAt,
+                },
+                ...(lead.history ?? []),
+              ],
+            }
+          : lead,
+      ),
+    );
+
+    if (mode === "demo") {
+      setNotice("Modo demonstração: a mudança é apenas visual.");
+      return;
+    }
+
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Falha ao atualizar a origem.");
+      setNotice("Origem atualizada.");
+    } catch (error) {
+      setLeads(before);
+      setNotice(error instanceof Error ? error.message : "Falha ao atualizar.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -1245,7 +1322,11 @@ export function LeadDashboard({
                           </div>
                         </td>
                         <td>
-                          <span className="origin-badge">{lead.origin}</span>
+                          <OriginSelect
+                            disabled={updatingId === lead.id}
+                            onChange={(origin) => handleOriginChange(lead.id, origin)}
+                            origin={lead.origin}
+                          />
                         </td>
                         <td>
                           <span className="date-value">{formatDate(lead.enteredAt)}</span>
@@ -1320,9 +1401,11 @@ export function LeadDashboard({
                         <CalendarDays size={13} />
                         {formatDate(lead.enteredAt)}
                       </span>
-                      <span className="mobile-origin">
-                        {lead.source?.fileName ?? lead.origin}
-                      </span>
+                      <OriginSelect
+                        disabled={updatingId === lead.id}
+                        onChange={(origin) => handleOriginChange(lead.id, origin)}
+                        origin={lead.origin}
+                      />
                     </div>
                   </article>
                 ))}

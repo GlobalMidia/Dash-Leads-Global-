@@ -8,7 +8,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/lead-normalization";
-import { normalizeLeadOrigin } from "@/lib/lead-origin";
+import { normalizeLeadOrigin, type LeadOrigin } from "@/lib/lead-origin";
 import { getSql } from "@/server/db";
 import {
   STATUS_LABELS,
@@ -30,6 +30,7 @@ export type AuditActor = {
 
 export type LeadPatch = {
   status?: LeadStatus;
+  origin?: LeadOrigin;
   notes?: string;
 };
 
@@ -173,6 +174,7 @@ export async function updateLead(
 
   const sql = getSql();
   const status = patch.status ?? null;
+  const origin = patch.origin ?? null;
   const notes = patch.notes ?? null;
   const title = patch.status
     ? "Qualificação alterada"
@@ -194,6 +196,7 @@ export async function updateLead(
       UPDATE leads
       SET
         status = COALESCE(${status}, status),
+        origin = COALESCE(${origin}, origin),
         notes = COALESCE(${notes}, notes),
         updated_at = NOW()
       WHERE id = ${id}::uuid
@@ -213,7 +216,7 @@ export async function updateLead(
       SELECT
         ${actor.userId ?? null}::uuid,
         ${actor.email ?? null},
-        ${patch.status ? "lead.status_updated" : "lead.notes_updated"},
+        ${patch.status ? "lead.status_updated" : patch.origin ? "lead.origin_updated" : "lead.notes_updated"},
         'lead',
         updated.id::text,
         to_jsonb(previous),
