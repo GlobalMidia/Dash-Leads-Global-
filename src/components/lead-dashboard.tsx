@@ -587,12 +587,14 @@ export function LeadDashboard({
           : `${data.processed ?? 0}`;
         setNotice(
           hasMore
-            ? `RD Station: ${progress} processados. Próximo lote em 1 minuto.`
+            ? `RD Station: ${progress} processados. Próximo lote em 30 segundos.`
             : `Sincronização concluída: ${progress} contatos processados.`,
         );
 
         if (hasMore && !syncStopped.current) {
-          await new Promise((resolve) => window.setTimeout(resolve, 60_000));
+          // Cada lote tem até 60 contatos. Um lote a cada 30 segundos equivale
+          // a 120 contatos por minuto, mantendo apenas 2 chamadas/minuto à API.
+          await new Promise((resolve) => window.setTimeout(resolve, 30_000));
         }
       }
     } catch (error) {
