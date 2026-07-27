@@ -1097,6 +1097,23 @@ td {
   gap: 9px;
 }
 
+.page-size-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: #8b96a8;
+}
+
+.page-size-select select {
+  border: 1px solid #e1e6ee;
+  border-radius: 7px;
+  color: #58657b;
+  background: #fff;
+  padding: 5px 6px;
+  font-size: 9px;
+}
+
 .pagination button {
   display: grid;
   width: 28px;

@@ -79,7 +79,7 @@ const DEFAULT_FILTERS: DashboardFilters = {
   endDate: "",
 };
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200, 500] as const;
 const ORIGIN_COLORS = ["#2f7df4", "#17b6a4", "#ff9f43", "#7257d8", "#e95e6b"];
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -326,6 +326,7 @@ export function LeadDashboard({
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const syncStopped = useRef(false);
@@ -368,10 +369,10 @@ export function LeadDashboard({
     });
     return sizes;
   }, [leads]);
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
   const paginatedLeads = filteredLeads.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
+    (page - 1) * pageSize,
+    page * pageSize,
   );
 
   useEffect(() => {
@@ -1413,11 +1414,28 @@ export function LeadDashboard({
 
               <div className="pagination">
                 <span>
-                  Exibindo {(page - 1) * PAGE_SIZE + 1}–
-                  {Math.min(page * PAGE_SIZE, filteredLeads.length)} de{" "}
+                  Exibindo {(page - 1) * pageSize + 1}–
+                  {Math.min(page * pageSize, filteredLeads.length)} de{" "}
                   {filteredLeads.length}
                 </span>
                 <div>
+                  <label className="page-size-select">
+                    <span>Por página</span>
+                    <select
+                      aria-label="Quantidade de leads por página"
+                      value={pageSize}
+                      onChange={(event) => {
+                        setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
+                        setPage(1);
+                      }}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     aria-label="Página anterior"
                     disabled={page === 1}
