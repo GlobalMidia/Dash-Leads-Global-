@@ -599,8 +599,8 @@ export function LeadDashboard({
         );
 
         if (hasMore && !syncStopped.current) {
-          // Um lote de até dois contatos por segundo equivale a 120 contatos
-          // por minuto, usando 60 chamadas/minuto e mantendo margem no RD.
+          // Um lote de até 125 contatos por segundo usa 60 chamadas/minuto,
+          // mantendo margem abaixo do limite do RD.
           await new Promise((resolve) => window.setTimeout(resolve, 1_000));
         }
       }
