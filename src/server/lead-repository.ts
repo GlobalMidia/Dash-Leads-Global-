@@ -167,6 +167,17 @@ export async function listLeads(): Promise<Lead[]> {
   return rows.map((row) => mapRow(row));
 }
 
+export async function getLeadById(id: string): Promise<Lead | null> {
+  if (!isLiveMode()) return DEMO_LEADS.find((lead) => lead.id === id) ?? null;
+
+  const sql = getSql();
+  const rows = (await sql.query(
+    `${leadSelect} WHERE l.id = $1::uuid LIMIT 1`,
+    [id],
+  )) as DatabaseRow[];
+  return rows[0] ? mapRow(rows[0]) : null;
+}
+
 export async function updateLead(
   id: string,
   patch: LeadPatch,

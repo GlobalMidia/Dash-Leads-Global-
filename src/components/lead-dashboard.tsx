@@ -330,6 +330,7 @@ export function LeadDashboard({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const syncStopped = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -418,6 +419,39 @@ export function LeadDashboard({
     setNotesDraft(lead.notes);
     setCompanyProfileDraft(lead.companyProfileUrl ?? "");
     setDetailsTab("details");
+    if (
+      mode === "live" &&
+      lead.rdUuid &&
+      !lead.additionalData?.rdDetailsEnrichedAt
+    ) {
+      void loadRdDetailsForLead(lead.id);
+    }
+  }
+
+  async function loadRdDetailsForLead(id: string) {
+    setEnrichingLeadId(id);
+    try {
+      const response = await fetch(
+        `/api/leads/${encodeURIComponent(id)}/rd-details`,
+        { method: "POST" },
+      );
+      const data = (await response.json()) as { lead?: Lead; error?: string };
+      if (!response.ok || !data.lead) {
+        throw new Error(data.error ?? "Não foi possível consultar os detalhes no RD Station.");
+      }
+      setLeads((current) =>
+        current.map((lead) => (lead.id === id ? data.lead as Lead : lead)),
+      );
+      setNotice("Detalhes do contato atualizados pelo RD Station.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível consultar os detalhes no RD Station.",
+      );
+    } finally {
+      setEnrichingLeadId((current) => (current === id ? null : current));
+    }
   }
 
   async function copyContact(value: string, label: string) {
@@ -1583,6 +1617,18 @@ export function LeadDashboard({
                 <span>{Math.max(selectedLead.history?.length ?? 0, 1)}</span>
               </button>
             </nav>
+
+            {selectedLead.rdUuid && !selectedLead.additionalData?.rdDetailsEnrichedAt && (
+              <div className="rd-details-loading" role="status">
+                <RefreshCw
+                  className={enrichingLeadId === selectedLead.id ? "animate-spin" : ""}
+                  size={14}
+                />
+                {enrichingLeadId === selectedLead.id
+                  ? "Buscando telefone e informações complementares no RD Station..."
+                  : "Detalhes completos serão buscados no RD Station ao abrir este perfil."}
+              </div>
+            )}
 
             {detailsTab === "details" ? (
               <>

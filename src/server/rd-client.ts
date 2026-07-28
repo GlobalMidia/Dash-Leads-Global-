@@ -191,6 +191,18 @@ function mergeContactDetails(summary: unknown, detailPayload: unknown) {
 const RD_DETAILS_PER_SYNC = 60;
 
 async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<string>) {
+  // O endpoint de detalhes do RD só aceita um UUID por requisição. Bloquear a
+  // paginação de 125 contatos para enriquecer toda a base aqui torna uma
+  // sincronização histórica inviável. Os detalhes passam a ser carregados ao
+  // abrir um perfil; a flag existe apenas para uma manutenção excepcional.
+  if (process.env.RD_SYNC_ENRICH_ALL !== "true") {
+    return {
+      contacts: sourceContacts,
+      remainingDetails: 0,
+      completedDetails: sourceContacts.length,
+    };
+  }
+
   const pending = sourceContacts.filter((contact) => {
     const uuid = contactUuid(contact);
     return uuid && !enrichedUuids.has(uuid);
@@ -251,6 +263,17 @@ async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<stri
   };
 }
 
+export async function loadRdContactDetails(rdUuid: string): Promise<Lead | null> {
+  const result = await rdGet(
+    `${RD_API_BASE}/platform/contacts/${encodeURIComponent(rdUuid)}`,
+  );
+  if (!result.payload || typeof result.payload !== "object") return null;
+  return normalizeRdContact({
+    ...(result.payload as Record<string, unknown>),
+    __rdDetailsEnrichedAt: new Date().toISOString(),
+  });
+}
+
 function extractSegmentations(payload: unknown): RdSegmentation[] {
   if (Array.isArray(payload)) return payload as RdSegmentation[];
   if (!payload || typeof payload !== "object") return [];
@@ -304,6 +327,7 @@ type SyncCursor = {
 
 /** Busca uma única página; o cursor persistido permite retomar sem timeout. */
 export async function importNextRdBatch(): Promise<RdSyncBatch> {
+  const startedAt = Date.now();
   const sql = getSql();
   const cursorRows = (await sql`
     SELECT segmentation_id, next_page, imported_count, status
@@ -368,7 +392,7 @@ export async function importNextRdBatch(): Promise<RdSyncBatch> {
         updated_at = NOW(),
         completed_at = EXCLUDED.completed_at
     `;
-    return {
+    const batch = {
       contacts: [...byUuid.values()],
       hasMore,
       page,
@@ -377,6 +401,16 @@ export async function importNextRdBatch(): Promise<RdSyncBatch> {
       detailsCompleted: detailResult.completedDetails,
       detailsTotal: sourceContacts.length,
     };
+    console.info("[rd-sync] página importada", {
+      page,
+      received: sourceContacts.length,
+      valid: batch.contacts.length,
+      processed,
+      total,
+      hasMore,
+      durationMs: Date.now() - startedAt,
+    });
+    return batch;
   } catch (error) {
     await sql`
       INSERT INTO rd_sync_cursor (

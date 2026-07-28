@@ -369,6 +369,20 @@ select:disabled {
   font-weight: 650;
 }
 
+.rd-details-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 13px 20px 0;
+  border: 1px solid #d9e7fb;
+  border-radius: 9px;
+  color: #52709a;
+  background: #f5f9ff;
+  padding: 9px 11px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .rail-button:hover {
   color: var(--blue);
   background: #f1f6ff;
