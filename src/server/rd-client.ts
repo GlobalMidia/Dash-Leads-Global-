@@ -138,6 +138,110 @@ async function rdGet(url: string) {
   };
 }
 
+type RdWebhookSubscription = {
+  uuid?: string;
+  event_type?: string;
+  url?: string;
+};
+
+function extractWebhookSubscriptions(payload: unknown): RdWebhookSubscription[] {
+  if (Array.isArray(payload)) return payload as RdWebhookSubscription[];
+  if (!payload || typeof payload !== "object") return [];
+
+  const record = payload as Record<string, unknown>;
+  for (const key of ["webhooks", "subscriptions", "items", "data"]) {
+    if (Array.isArray(record[key])) return record[key] as RdWebhookSubscription[];
+  }
+  return [];
+}
+
+async function rdWebhookRequest(
+  url: string,
+  method: "GET" | "POST" | "PUT",
+  body?: Record<string, unknown>,
+) {
+  const token = await accessToken();
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    let detail = responseText.slice(0, 180);
+    try {
+      const parsed = JSON.parse(responseText) as { message?: string; error?: string };
+      detail = parsed.message ?? parsed.error ?? detail;
+    } catch {
+      // A resposta textual do RD já é a melhor informação disponível.
+    }
+    throw new Error(
+      `RD Station não conseguiu configurar o recebimento automático (${response.status})${
+        detail ? `: ${detail}` : ""
+      }.`,
+    );
+  }
+
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** Registra (ou atualiza) o webhook de conversões para manter novos leads em dia. */
+export async function configureRdConversionWebhook(origin: string) {
+  const secret = process.env.RD_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new Error("A chave segura do webhook não está configurada na Vercel.");
+  }
+
+  const destination = new URL("/api/rd/webhook", origin);
+  destination.searchParams.set("token", secret);
+  const subscription = {
+    event_type: "WEBHOOK.CONVERTED",
+    entity_type: "CONTACT",
+    event_identifiers: [],
+    url: destination.toString(),
+    http_method: "POST",
+    include_relations: ["COMPANY", "CONTACT_FUNNEL"],
+  };
+
+  const existingPayload = await rdWebhookRequest(
+    `${RD_API_BASE}/integrations/webhooks`,
+    "GET",
+  );
+  const existing = extractWebhookSubscriptions(existingPayload).find(
+    (item) => item.event_type === subscription.event_type,
+  );
+
+  if (existing?.uuid) {
+    if (existing.url === subscription.url) {
+      return { active: true, changed: false };
+    }
+    await rdWebhookRequest(
+      `${RD_API_BASE}/integrations/webhooks/${encodeURIComponent(existing.uuid)}`,
+      "PUT",
+      subscription,
+    );
+    return { active: true, changed: true };
+  }
+
+  await rdWebhookRequest(
+    `${RD_API_BASE}/integrations/webhooks`,
+    "POST",
+    subscription,
+  );
+  return { active: true, changed: true };
+}
+
 function contactUuid(value: unknown) {
   if (!value || typeof value !== "object") return "";
   const row = value as Record<string, unknown>;

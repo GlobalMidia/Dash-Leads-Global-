@@ -4,6 +4,7 @@ import {
   ArrowDownToLine,
   BarChart3,
   Bell,
+  BellRing,
   BriefcaseBusiness,
   Building2,
   CalendarDays,
@@ -331,6 +332,7 @@ export function LeadDashboard({
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [activatingWebhook, setActivatingWebhook] = useState(false);
   const syncStopped = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -706,6 +708,34 @@ export function LeadDashboard({
       );
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleActivateRdWebhook() {
+    if (mode === "demo") return;
+
+    setActivatingWebhook(true);
+    try {
+      const response = await fetch("/api/rd/webhook/subscription", {
+        method: "POST",
+      });
+      const data = (await response.json()) as { changed?: boolean; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Não foi possível ativar as entradas automáticas.");
+      }
+      setNotice(
+        data.changed
+          ? "Entradas automáticas ativadas. Novas conversões do RD chegarão completas ao painel."
+          : "Entradas automáticas já estavam ativadas para este RD Station.",
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível ativar as entradas automáticas.",
+      );
+    } finally {
+      setActivatingWebhook(false);
     }
   }
 
@@ -1120,6 +1150,17 @@ export function LeadDashboard({
                     ? "Conectar RD"
                     : "RD indisponível"}
             </button>
+            {mode === "live" && rdConnected && (
+              <button
+                className="tutorial-button"
+                disabled={activatingWebhook}
+                onClick={handleActivateRdWebhook}
+                type="button"
+              >
+                <BellRing className={activatingWebhook ? "animate-spin" : ""} size={17} />
+                {activatingWebhook ? "Ativando..." : "Ativar entradas automáticas"}
+              </button>
+            )}
           </div>
         </section>
 

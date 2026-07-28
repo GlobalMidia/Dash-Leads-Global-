@@ -31,7 +31,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = await request.json().catch(() => null);
+  const rawBody = await request.text();
+  // O RD faz uma chamada sem conteúdo ao validar a URL no momento do cadastro.
+  // Responder 204 aqui permite a ativação sem gravar nenhum contato vazio.
+  if (!rawBody.trim()) {
+    return new NextResponse(null, { status: 204 });
+  }
+
+  const payload = (() => {
+    try {
+      return JSON.parse(rawBody) as unknown;
+    } catch {
+      return null;
+    }
+  })();
   if (!payload) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
