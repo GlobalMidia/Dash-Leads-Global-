@@ -605,13 +605,23 @@ export function LeadDashboard({
       let batchesSinceRefresh = 0;
       while (hasMore && !syncStopped.current) {
         const response = await fetch("/api/rd/sync", { method: "POST" });
-        const data = (await response.json()) as {
+        const responseText = await response.text();
+        let data: {
           imported?: number;
           hasMore?: boolean;
           processed?: number;
           total?: number | null;
           error?: string;
-        };
+        } = {};
+        try {
+          data = JSON.parse(responseText) as typeof data;
+        } catch {
+          throw new Error(
+            response.ok
+              ? "O servidor respondeu em um formato inesperado. Tente novamente."
+              : `A sincronização falhou no servidor (${response.status}).`,
+          );
+        }
         if (!response.ok) throw new Error(data.error ?? "Falha na sincronização.");
 
         hasMore = Boolean(data.hasMore);

@@ -167,11 +167,13 @@ function mergeContactDetails(summary: unknown, detailPayload: unknown) {
   };
 }
 
+const RD_DETAILS_PER_SYNC = 60;
+
 async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<string>) {
   const pending = sourceContacts.filter((contact) => {
     const uuid = contactUuid(contact);
     return uuid && !enrichedUuids.has(uuid);
-  });
+  }).slice(0, RD_DETAILS_PER_SYNC);
   const enriched = new Map<string, unknown>();
 
   // O RD limita a API a 120 requisições/minuto. Dois detalhes por segundo
@@ -201,10 +203,23 @@ async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<stri
     }
   }
 
-  return sourceContacts.map((summary) => {
+  const contacts = sourceContacts.map((summary) => {
     const uuid = contactUuid(summary);
     return enriched.get(uuid) ?? summary;
   });
+  const newlyEnrichedUuids = new Set(
+    contacts
+      .filter((contact) => {
+        if (!contact || typeof contact !== "object") return false;
+        return Boolean((contact as Record<string, unknown>).__rdDetailsEnrichedAt);
+      })
+      .map(contactUuid),
+  );
+  const remainingDetails = sourceContacts.filter((contact) => {
+    const uuid = contactUuid(contact);
+    return uuid && !enrichedUuids.has(uuid) && !newlyEnrichedUuids.has(uuid);
+  }).length;
+  return { contacts, remainingDetails };
 }
 
 function extractSegmentations(payload: unknown): RdSegmentation[] {
@@ -289,22 +304,25 @@ export async function importNextRdBatch(): Promise<RdSyncBatch> {
         `) as Array<{ rd_uuid: string }> )
       : [];
     const enrichedUuids = new Set(enrichedRows.map((row) => String(row.rd_uuid)));
-    const detailedContacts = await enrichContacts(sourceContacts, enrichedUuids);
+    const detailResult = await enrichContacts(sourceContacts, enrichedUuids);
+    const detailedContacts = detailResult.contacts;
     const byUuid = new Map<string, Lead>();
     detailedContacts.forEach((contact) => {
       const lead = normalizeRdContact(contact);
       if (lead?.rdUuid) byUuid.set(lead.rdUuid, lead);
     });
     const total = result.totalRows > 0 ? result.totalRows : null;
-    const hasMore = total ? page * RD_BATCH_SIZE < total : sourceContacts.length === RD_BATCH_SIZE;
-    const processed = alreadyImported + sourceContacts.length;
+    const hasNextPage = total ? page * RD_BATCH_SIZE < total : sourceContacts.length === RD_BATCH_SIZE;
+    const hasPendingDetails = detailResult.remainingDetails > 0;
+    const hasMore = hasPendingDetails || hasNextPage;
+    const processed = alreadyImported + (hasPendingDetails ? 0 : sourceContacts.length);
 
     await sql`
       INSERT INTO rd_sync_cursor (
         account_identifier, segmentation_id, next_page, total_rows,
         imported_count, status, last_error, started_at, updated_at, completed_at
       ) VALUES (
-        'primary', ${segmentId}, ${hasMore ? page + 1 : page}, ${total},
+        'primary', ${segmentId}, ${hasPendingDetails ? page : hasNextPage ? page + 1 : page}, ${total},
         ${processed}, ${hasMore ? "running" : "completed"}, NULL, NOW(), NOW(),
         ${hasMore ? null : new Date().toISOString()}::timestamptz
       )
