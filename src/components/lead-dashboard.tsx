@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowDownToLine,
   BarChart3,
   Bell,
+  BriefcaseBusiness,
   Building2,
   CalendarDays,
   Check,
@@ -950,6 +952,14 @@ export function LeadDashboard({
         <button className="rail-button active" aria-label="Dashboard" type="button">
           <LayoutDashboard size={19} />
         </button>
+        <Link
+          aria-label="Abrir PME e reativação"
+          className="rail-button"
+          href="/pme"
+          title="PME e reativação"
+        >
+          <BriefcaseBusiness size={19} />
+        </Link>
         <button
           className="rail-button"
           aria-label="Ir para os leads"
