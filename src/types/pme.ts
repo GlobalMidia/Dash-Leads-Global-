@@ -34,6 +34,33 @@ export type PmeDirectoryData = {
   companies: PmeCompany[];
   importedRecords: number;
   latestImportAt: string | null;
+  importBatches: PmeImportBatch[];
+};
+
+export type PmeImportBatch = {
+  id: string;
+  fileName: string;
+  importedRows: number;
+  ignoredRows: number;
+  sourceSheets: string[];
+  importedByName: string;
+  importedByEmail: string;
+  createdAt: string;
+};
+
+export type PmeImportBatchRecord = {
+  id: string;
+  sourceSheet: string;
+  sourceRow: number;
+  category: string;
+  companyName: string;
+  contactName: string;
+  phone: string;
+  historicStatus: string;
+};
+
+export type PmeImportBatchDetails = PmeImportBatch & {
+  records: PmeImportBatchRecord[];
 };
 
 export type PmeCompanyRecord = {

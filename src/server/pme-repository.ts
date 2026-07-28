@@ -4,7 +4,16 @@ import { randomUUID } from "node:crypto";
 import { normalizeCompany } from "@/lib/lead-normalization";
 import { getSql } from "@/server/db";
 import { isLiveMode } from "@/server/lead-repository";
-import type { PmeCompany, PmeCompanyDetails, PmeCompanyRecord, PmeDirectoryData, PmeImportRecord } from "@/types/pme";
+import type {
+  PmeCompany,
+  PmeCompanyDetails,
+  PmeCompanyRecord,
+  PmeDirectoryData,
+  PmeImportBatch,
+  PmeImportBatchDetails,
+  PmeImportBatchRecord,
+  PmeImportRecord,
+} from "@/types/pme";
 
 type Row = Record<string, unknown>;
 
@@ -56,6 +65,32 @@ function mapCompanyRecord(row: Row): PmeCompanyRecord {
   };
 }
 
+function mapImportBatch(row: Row): PmeImportBatch {
+  return {
+    id: String(row.id),
+    fileName: String(row.file_name),
+    importedRows: Number(row.imported_rows ?? 0),
+    ignoredRows: Number(row.ignored_rows ?? 0),
+    sourceSheets: Array.isArray(row.source_sheets) ? row.source_sheets.map(String) : [],
+    importedByName: String(row.imported_by_name ?? ""),
+    importedByEmail: String(row.imported_by_email ?? ""),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+  };
+}
+
+function mapImportBatchRecord(row: Row): PmeImportBatchRecord {
+  return {
+    id: String(row.id),
+    sourceSheet: String(row.source_sheet),
+    sourceRow: Number(row.source_row),
+    category: String(row.category),
+    companyName: String(row.company_name),
+    contactName: String(row.contact_name ?? ""),
+    phone: String(row.phone ?? ""),
+    historicStatus: String(row.historic_status ?? ""),
+  };
+}
+
 const companyQuery = `
   WITH grouped AS (
     SELECT
@@ -79,18 +114,48 @@ const companyQuery = `
 `;
 
 export async function getPmeDirectory(): Promise<PmeDirectoryData> {
-  if (!isLiveMode()) return { companies: [], importedRecords: 0, latestImportAt: null };
+  if (!isLiveMode()) return { companies: [], importedRecords: 0, latestImportAt: null, importBatches: [] };
   const sql = getSql();
-  const [companies, totals] = await Promise.all([
+  const [companies, totals, batches] = await Promise.all([
     sql.query(companyQuery) as Promise<Row[]>,
     sql.query("SELECT COALESCE(SUM(imported_rows), 0)::int AS imported_records, max(created_at) AS latest_import_at FROM pme_import_batches") as Promise<Row[]>,
+    sql.query(`
+      SELECT b.*, COALESCE(NULLIF(u.name, ''), b.imported_by_email, '') AS imported_by_name
+      FROM pme_import_batches b
+      LEFT JOIN application_users u ON u.id = b.imported_by
+      ORDER BY b.created_at DESC
+    `) as Promise<Row[]>,
   ]);
   const summary = totals[0] ?? {};
   return {
     companies: companies.map(mapCompany),
     importedRecords: Number(summary.imported_records ?? 0),
     latestImportAt: summary.latest_import_at ? new Date(String(summary.latest_import_at)).toISOString() : null,
+    importBatches: batches.map(mapImportBatch),
   };
+}
+
+export async function getPmeImportBatchDetails(batchId: string): Promise<PmeImportBatchDetails | null> {
+  if (!isLiveMode()) return null;
+  const sql = getSql();
+  const [batches, records] = await Promise.all([
+    sql.query(`
+      SELECT b.*, COALESCE(NULLIF(u.name, ''), b.imported_by_email, '') AS imported_by_name
+      FROM pme_import_batches b
+      LEFT JOIN application_users u ON u.id = b.imported_by
+      WHERE b.id = $1
+      LIMIT 1
+    `, [batchId]) as Promise<Row[]>,
+    sql.query(`
+      SELECT id, source_sheet, source_row, category, company_name, contact_name, phone, historic_status
+      FROM pme_reactivation_records
+      WHERE import_batch_id = $1
+      ORDER BY source_sheet ASC, source_row ASC
+      LIMIT 10000
+    `, [batchId]) as Promise<Row[]>,
+  ]);
+  const batch = batches[0];
+  return batch ? { ...mapImportBatch(batch), records: records.map(mapImportBatchRecord) } : null;
 }
 
 export async function getPmeCompanyDetails(normalizedCompany: string): Promise<PmeCompanyDetails | null> {

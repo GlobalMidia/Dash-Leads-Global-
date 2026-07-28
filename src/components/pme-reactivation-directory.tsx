@@ -16,7 +16,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import { parsePmeWorkbook, type PmeWorkbookPreview } from "@/lib/pme-workbook";
-import type { PmeCompany, PmeCompanyDetails, PmeDirectoryData } from "@/types/pme";
+import type { PmeCompany, PmeCompanyDetails, PmeDirectoryData, PmeImportBatch, PmeImportBatchDetails } from "@/types/pme";
 
 type PmeReactivationDirectoryProps = {
   mode: "demo" | "live";
@@ -47,6 +47,7 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
   const inputRef = useRef<HTMLInputElement>(null);
   const [directory] = useState(initialDirectory);
   const [query, setQuery] = useState("");
+  const [batchQuery, setBatchQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [preview, setPreview] = useState<PmeWorkbookPreview | null>(null);
   const [fileName, setFileName] = useState("");
@@ -55,6 +56,8 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
   const [importing, setImporting] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<PmeCompanyDetails | null>(null);
   const [loadingCompany, setLoadingCompany] = useState<string | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<PmeImportBatchDetails | null>(null);
+  const [loadingBatch, setLoadingBatch] = useState<string | null>(null);
   const go = (path: string) => window.location.assign(path);
 
   const categories = useMemo(
@@ -68,6 +71,11 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
       return (!term || searchable.includes(term)) && (category === "all" || company.categories.includes(category));
     });
   }, [directory.companies, query, category]);
+  const visibleBatches = useMemo(() => {
+    const term = batchQuery.trim().toLocaleLowerCase("pt-BR");
+    return directory.importBatches.filter((batch) => [batch.fileName, batch.importedByName, batch.importedByEmail]
+      .join(" ").toLocaleLowerCase("pt-BR").includes(term));
+  }, [batchQuery, directory.importBatches]);
 
   async function chooseFile(file?: File) {
     if (!file) return;
@@ -135,6 +143,24 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
     }
   }
 
+  async function openImportBatch(batch: PmeImportBatch) {
+    if (mode !== "live") {
+      setNotice("Os detalhes das planilhas ficam disponíveis após a importação na base ao vivo.");
+      return;
+    }
+    setLoadingBatch(batch.id);
+    try {
+      const response = await fetch(`/api/pme/imports/${encodeURIComponent(batch.id)}`);
+      const result = (await response.json()) as { batch?: PmeImportBatchDetails; error?: string };
+      if (!response.ok || !result.batch) throw new Error(result.error ?? "Não foi possível abrir a planilha.");
+      setSelectedBatch(result.batch);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível abrir a planilha.");
+    } finally {
+      setLoadingBatch(null);
+    }
+  }
+
   return (
     <div className="dashboard-shell pme-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
       <header className="topbar">
@@ -160,6 +186,19 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
           <article><Users size={20}/><div><small>ÚLTIMA IMPORTAÇÃO</small><strong>{directory.latestImportAt ? formatDate(directory.latestImportAt) : "—"}</strong></div></article>
         </section>
 
+        <section className="pme-import-batches" aria-labelledby="pme-imported-files">
+          <header>
+            <div><p className="eyebrow">ORIGEM DOS DADOS</p><h2 id="pme-imported-files">Planilhas importadas</h2><p>Cada arquivo permanece separado, com quem importou, quando entrou e as abas de origem.</p></div>
+            <label><Search size={16}/><input onChange={(event) => setBatchQuery(event.target.value)} placeholder="Pesquisar nome ou responsável" value={batchQuery}/></label>
+          </header>
+          {directory.importBatches.length ? <div className="pme-batch-list">{visibleBatches.length ? visibleBatches.map((batch) => <article key={batch.id}>
+            <div className="pme-batch-icon"><FileSpreadsheet size={18}/></div>
+            <div className="pme-batch-copy"><h3>{batch.fileName}</h3><p>Importada em {formatDate(batch.createdAt)} por {batch.importedByName || batch.importedByEmail || "Usuário não identificado"}</p><span>{batch.sourceSheets.length} aba{batch.sourceSheets.length === 1 ? "" : "s"}: {batch.sourceSheets.join(" · ") || "Sem aba identificada"}</span></div>
+            <div className="pme-batch-metrics"><strong>{batch.importedRows}</strong><small>registros</small></div>
+            <button onClick={() => void openImportBatch(batch)} type="button">{loadingBatch === batch.id ? <LoaderCircle className="animate-spin" size={15}/> : <>Abrir<ChevronRight size={15}/></>}</button>
+          </article>) : <p className="pme-batch-empty">Nenhuma planilha corresponde à pesquisa.</p>}</div> : <p className="pme-batch-empty">Quando uma planilha for confirmada, ela aparecerá aqui como uma origem separada.</p>}
+        </section>
+
         {directory.companies.length > 0 ? <>
           <section className="pme-filters">
             <label><Search size={16}/><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar empresa, contato, telefone ou situação" value={query}/></label>
@@ -177,6 +216,7 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
 
         {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros preservados</span><span><strong>{preview.sourceSheets.length}</strong> abas lidas</span><span><strong>100%</strong> linhas com conteúdo</span></div><p>Linhas vazias usadas somente pela formatação da planilha não entram na contagem. Todo registro com conteúdo fica preservado com a aba e a linha de origem; empresas repetidas serão agrupadas apenas na visualização.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
         {selectedCompany && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-records-modal" role="dialog"><header><div><p className="eyebrow">HISTÓRICO PME</p><h2>{selectedCompany.companyName}</h2><p>{selectedCompany.contacts || "Contato não informado"}{selectedCompany.phones ? ` · ${selectedCompany.phones}` : ""}</p></div><button aria-label="Fechar histórico" onClick={() => setSelectedCompany(null)} type="button"><X size={18}/></button></header><div className="pme-records-body">{selectedCompany.website && <a className="pme-profile-link" href={selectedCompany.website} rel="noreferrer" target="_blank"><ExternalLink size={15}/>Abrir perfil da empresa</a>}<p className="pme-records-intro">Cada item abaixo é uma linha original da planilha, mantida com a aba e a posição de onde veio.</p>{selectedCompany.records.map((record) => <article key={record.id} className="pme-source-record"><header><div><strong>{record.sourceSheet}</strong><span>Linha {record.sourceRow} · {record.category}</span></div><span>{formatDate(record.contactAt ?? record.displayedAt ?? record.recordedAt)}</span></header><dl><div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div><div><dt>Situação</dt><dd>{record.historicStatus || "Sem situação registrada"}</dd></div><div><dt>Valor</dt><dd>{formatCurrency(record.historicValue)}</dd></div></dl>{record.notes && <p className="pme-source-notes">{record.notes}</p>}</article>)}</div><footer><button className="tutorial-button" onClick={() => setSelectedCompany(null)} type="button">Fechar</button></footer></section></div>}
+        {selectedBatch && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-records-modal" role="dialog"><header><div><p className="eyebrow">PLANILHA IMPORTADA</p><h2>{selectedBatch.fileName}</h2><p>Importada em {formatDate(selectedBatch.createdAt)} por {selectedBatch.importedByName || selectedBatch.importedByEmail || "Usuário não identificado"}</p></div><button aria-label="Fechar planilha" onClick={() => setSelectedBatch(null)} type="button"><X size={18}/></button></header><div className="pme-records-body"><p className="pme-records-intro">{selectedBatch.importedRows} registros preservados nas abas: {selectedBatch.sourceSheets.join(" · ") || "não identificadas"}.</p>{selectedBatch.records.map((record) => <article key={record.id} className="pme-source-record"><header><div><strong>{record.companyName}</strong><span>{record.sourceSheet} · Linha {record.sourceRow} · {record.category}</span></div><span>{record.historicStatus || "Sem situação"}</span></header><dl><div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div><div><dt>Aba</dt><dd>{record.sourceSheet}</dd></div><div><dt>Linha</dt><dd>{record.sourceRow}</dd></div></dl></article>)}</div><footer><button className="tutorial-button" onClick={() => setSelectedBatch(null)} type="button">Fechar</button></footer></section></div>}
         {notice && <div className="toast-notice">{notice}<button onClick={() => setNotice("")} type="button"><X size={15}/></button></div>}
       </main>
     </div>
