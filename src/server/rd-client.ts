@@ -207,18 +207,6 @@ function conversionWebhookDestination(origin: string) {
   return destination.toString();
 }
 
-export async function isRdConversionWebhookActive(origin: string) {
-  const destination = conversionWebhookDestination(origin);
-  const existingPayload = await rdWebhookRequest(
-    `${RD_API_BASE}/integrations/webhooks`,
-    "GET",
-  );
-  return extractWebhookSubscriptions(existingPayload).some(
-    (item) =>
-      item.event_type === "WEBHOOK.CONVERTED" && item.url === destination,
-  );
-}
-
 /** Registra (ou atualiza) o webhook de conversões para manter novos leads em dia. */
 export async function configureRdConversionWebhook(origin: string) {
   const destination = conversionWebhookDestination(origin);
@@ -251,12 +239,21 @@ export async function configureRdConversionWebhook(origin: string) {
     return { active: true, changed: true };
   }
 
-  await rdWebhookRequest(
-    `${RD_API_BASE}/integrations/webhooks`,
-    "POST",
-    subscription,
-  );
-  return { active: true, changed: true };
+  try {
+    await rdWebhookRequest(
+      `${RD_API_BASE}/integrations/webhooks`,
+      "POST",
+      subscription,
+    );
+    return { active: true, changed: true };
+  } catch (error) {
+    // O RD pode ocultar assinaturas existentes da listagem da integração,
+    // mas retorna 422 Duplicated URL quando esta inscrição já existe.
+    if (error instanceof Error && error.message.includes("DUPLICATED_URL")) {
+      return { active: true, changed: false };
+    }
+    throw error;
+  }
 }
 
 function contactUuid(value: unknown) {

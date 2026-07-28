@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { exchangeAuthorizationCode, isValidState, storeRdTokens } from "@/server/rd-oauth";
+import { configureRdConversionWebhook } from "@/server/rd-client";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,6 +26,11 @@ export async function GET(request: Request) {
 
   try {
     await storeRdTokens(await exchangeAuthorizationCode(code));
+    try {
+      await configureRdConversionWebhook(url.origin);
+    } catch (webhookError) {
+      console.error("Falha ao configurar o webhook automático do RD Station:", webhookError);
+    }
     redirect.searchParams.set("rd", "connected");
     return clearCookie(NextResponse.redirect(redirect));
   } catch {
