@@ -196,8 +196,7 @@ async function rdWebhookRequest(
   }
 }
 
-/** Registra (ou atualiza) o webhook de conversões para manter novos leads em dia. */
-export async function configureRdConversionWebhook(origin: string) {
+function conversionWebhookDestination(origin: string) {
   const secret = process.env.RD_WEBHOOK_SECRET;
   if (!secret) {
     throw new Error("A chave segura do webhook não está configurada na Vercel.");
@@ -205,11 +204,29 @@ export async function configureRdConversionWebhook(origin: string) {
 
   const destination = new URL("/api/rd/webhook", origin);
   destination.searchParams.set("token", secret);
+  return destination.toString();
+}
+
+export async function isRdConversionWebhookActive(origin: string) {
+  const destination = conversionWebhookDestination(origin);
+  const existingPayload = await rdWebhookRequest(
+    `${RD_API_BASE}/integrations/webhooks`,
+    "GET",
+  );
+  return extractWebhookSubscriptions(existingPayload).some(
+    (item) =>
+      item.event_type === "WEBHOOK.CONVERTED" && item.url === destination,
+  );
+}
+
+/** Registra (ou atualiza) o webhook de conversões para manter novos leads em dia. */
+export async function configureRdConversionWebhook(origin: string) {
+  const destination = conversionWebhookDestination(origin);
   const subscription = {
     event_type: "WEBHOOK.CONVERTED",
     entity_type: "CONTACT",
     event_identifiers: [],
-    url: destination.toString(),
+    url: destination,
     http_method: "POST",
     include_relations: ["COMPANY", "CONTACT_FUNNEL"],
   };

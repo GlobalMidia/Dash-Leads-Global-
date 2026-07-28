@@ -333,6 +333,7 @@ export function LeadDashboard({
   const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [activatingWebhook, setActivatingWebhook] = useState(false);
+  const [rdWebhookActive, setRdWebhookActive] = useState<boolean | null>(null);
   const syncStopped = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -385,6 +386,24 @@ export function LeadDashboard({
     const timeout = window.setTimeout(() => setNotice(null), 4200);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (mode !== "live" || !rdConnected) return;
+
+    let cancelled = false;
+    void fetch("/api/rd/webhook/subscription")
+      .then(async (response) => {
+        const data = (await response.json()) as { active?: boolean };
+        if (!cancelled) setRdWebhookActive(response.ok && Boolean(data.active));
+      })
+      .catch(() => {
+        if (!cancelled) setRdWebhookActive(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, rdConnected]);
 
   useEffect(() => {
     if (!selectedLead) return;
@@ -458,6 +477,7 @@ export function LeadDashboard({
           ? error.message
           : "Não foi possível consultar os detalhes no RD Station.",
       );
+      setRdWebhookActive(true);
     } finally {
       setEnrichingLeadId((current) => (current === id ? null : current));
     }
@@ -1150,7 +1170,7 @@ export function LeadDashboard({
                     ? "Conectar RD"
                     : "RD indisponível"}
             </button>
-            {mode === "live" && rdConnected && (
+            {mode === "live" && rdConnected && rdWebhookActive === false && (
               <button
                 className="tutorial-button"
                 disabled={activatingWebhook}
