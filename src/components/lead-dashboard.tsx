@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   Filter,
   History,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -429,6 +430,10 @@ export function LeadDashboard({
 
   function goToPmeDirectory() {
     window.location.assign("/pme");
+  }
+
+  function goToHealthCenter() {
+    window.location.assign("/health");
   }
 
   function goToDashboardTop() {
@@ -1017,6 +1022,15 @@ export function LeadDashboard({
           type="button"
         >
           <BriefcaseBusiness size={19} />
+        </button>
+        <button
+          aria-label="Abrir saúde das contas"
+          className="rail-button"
+          onClick={goToHealthCenter}
+          title="Saúde das contas"
+          type="button"
+        >
+          <HeartPulse size={19} />
         </button>
         <button
           className="rail-button"

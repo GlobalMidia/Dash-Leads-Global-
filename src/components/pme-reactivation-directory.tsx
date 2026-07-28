@@ -5,6 +5,7 @@ import {
   BriefcaseBusiness,
   Building2,
   FileSpreadsheet,
+  HeartPulse,
   LayoutDashboard,
   ShieldCheck,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export function PmeReactivationDirectory({
 }: PmeReactivationDirectoryProps) {
   const { preferences, resolvedTheme } = useProfilePreferences(user.email);
   const goToDashboard = () => window.location.assign("/");
+  const goToHealth = () => window.location.assign("/health");
   const goToPmeTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
@@ -81,6 +83,15 @@ export function PmeReactivationDirectory({
           type="button"
         >
           <BriefcaseBusiness size={19} />
+        </button>
+        <button
+          aria-label="Saúde das contas"
+          className="rail-button"
+          onClick={goToHealth}
+          title="Saúde das contas"
+          type="button"
+        >
+          <HeartPulse size={19} />
         </button>
       </aside>
 
