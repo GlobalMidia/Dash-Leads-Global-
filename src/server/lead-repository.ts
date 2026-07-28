@@ -572,6 +572,7 @@ export async function upsertLeads(inputs: LeadInput[]) {
       origin: normalizeLeadOrigin(lead.origin),
       entered_at: lead.enteredAt,
       status: lead.status,
+      additional_data: lead.additionalData ?? {},
     }));
 
     await sql`
@@ -588,30 +589,32 @@ export async function upsertLeads(inputs: LeadInput[]) {
           normalized_company text,
           origin text,
           entered_at timestamptz,
-          status text
+          status text,
+          additional_data jsonb
         )
       )
       INSERT INTO leads (
         rd_uuid, name, company, email, phone, normalized_email,
         normalized_phone, normalized_company, origin, entered_at, status,
-        source_type, source_label, updated_at
+        additional_data, source_type, source_label, updated_at
       )
       SELECT
         rd_uuid, name, company, email, phone, normalized_email,
         normalized_phone, normalized_company, origin, entered_at, status,
-        'rd', 'RD Station', NOW()
+        additional_data, 'rd', 'RD Station', NOW()
       FROM incoming
       ON CONFLICT (rd_uuid)
       DO UPDATE SET
-        name = EXCLUDED.name,
-        company = EXCLUDED.company,
-        email = EXCLUDED.email,
-        phone = EXCLUDED.phone,
-        normalized_email = EXCLUDED.normalized_email,
-        normalized_phone = EXCLUDED.normalized_phone,
-        normalized_company = EXCLUDED.normalized_company,
-        origin = EXCLUDED.origin,
+        name = COALESCE(NULLIF(EXCLUDED.name, ''), leads.name),
+        company = COALESCE(NULLIF(EXCLUDED.company, ''), leads.company),
+        email = COALESCE(NULLIF(EXCLUDED.email, ''), leads.email),
+        phone = COALESCE(NULLIF(EXCLUDED.phone, ''), leads.phone),
+        normalized_email = COALESCE(NULLIF(EXCLUDED.normalized_email, ''), leads.normalized_email),
+        normalized_phone = COALESCE(NULLIF(EXCLUDED.normalized_phone, ''), leads.normalized_phone),
+        normalized_company = COALESCE(NULLIF(EXCLUDED.normalized_company, ''), leads.normalized_company),
+        origin = CASE WHEN EXCLUDED.origin = 'Não identificado' THEN leads.origin ELSE EXCLUDED.origin END,
         entered_at = LEAST(leads.entered_at, EXCLUDED.entered_at),
+        additional_data = COALESCE(leads.additional_data, '{}'::jsonb) || COALESCE(EXCLUDED.additional_data, '{}'::jsonb),
         source_type = 'rd',
         source_label = 'RD Station',
         updated_at = NOW()

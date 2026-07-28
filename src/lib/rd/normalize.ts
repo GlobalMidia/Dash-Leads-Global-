@@ -26,6 +26,36 @@ function normalizedValue(value: unknown) {
     : "";
 }
 
+function booleanValue(...values: unknown[]) {
+  return values.some((value) => value === true || value === 1 || value === "true");
+}
+
+function emailWarning(contact: UnknownRecord, root: UnknownRecord): Record<string, string> {
+  const status = stringValue(
+    contact.email_status,
+    contact.email_validation_status,
+    contact.email_deliverability,
+    root.email_status,
+  );
+  const statusText = normalizedValue(status);
+  const disabled =
+    booleanValue(
+      contact.email_invalid,
+      contact.email_disabled,
+      contact.email_bounced,
+      contact.email_blocked,
+      root.email_invalid,
+      root.email_disabled,
+    ) ||
+    ["invalid", "invalido", "bounce", "bounced", "blocked", "blocked", "disabled", "desativado", "unsubscribed"].some(
+      (term) => statusText.includes(term),
+    );
+  if (!disabled) return {};
+  return {
+    rdEmailWarning: status || "Este e-mail foi marcado como inválido ou desativado no RD Station.",
+  };
+}
+
 function isInternalEmail(email: string) {
   return email.toLocaleLowerCase("pt-BR").endsWith("@globalmidia.digital");
 }
@@ -191,7 +221,23 @@ export function normalizeRdContact(input: unknown): Lead | null {
     notes: "",
     updatedAt: new Date().toISOString(),
     additionalData: {
+      ...(stringValue(root.__rdDetailsEnrichedAt)
+        ? { rdDetailsEnrichedAt: stringValue(root.__rdDetailsEnrichedAt) }
+        : {}),
       ...associatedContactData(contact, root),
+      ...emailWarning(contact, root),
+      ...(stringValue(contact.website, root.website)
+        ? { rdWebsite: stringValue(contact.website, root.website) }
+        : {}),
+      ...(stringValue(contact.linkedin, root.linkedin)
+        ? { rdLinkedin: stringValue(contact.linkedin, root.linkedin) }
+        : {}),
+      ...(stringValue(contact.instagram, root.instagram)
+        ? { rdInstagram: stringValue(contact.instagram, root.instagram) }
+        : {}),
+      ...(stringValue(contact.facebook, root.facebook)
+        ? { rdFacebook: stringValue(contact.facebook, root.facebook) }
+        : {}),
       ...(stage ? { rdStage: stage } : {}),
       ...(rawOrigin ? { rdOrigin: rawOrigin } : {}),
       ...(contact.last_conversion_date

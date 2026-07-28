@@ -138,6 +138,75 @@ async function rdGet(url: string) {
   };
 }
 
+function contactUuid(value: unknown) {
+  if (!value || typeof value !== "object") return "";
+  const row = value as Record<string, unknown>;
+  const nested = row.contact && typeof row.contact === "object"
+    ? (row.contact as Record<string, unknown>)
+    : {};
+  return String(row.uuid ?? row.id ?? nested.uuid ?? nested.id ?? "");
+}
+
+function mergeContactDetails(summary: unknown, detailPayload: unknown) {
+  const base = summary && typeof summary === "object"
+    ? (summary as Record<string, unknown>)
+    : {};
+  const detail = detailPayload && typeof detailPayload === "object"
+    ? (detailPayload as Record<string, unknown>)
+    : {};
+  const baseContact = base.contact && typeof base.contact === "object"
+    ? (base.contact as Record<string, unknown>)
+    : {};
+  const detailContact = detail.contact && typeof detail.contact === "object"
+    ? (detail.contact as Record<string, unknown>)
+    : {};
+  return {
+    ...base,
+    ...detail,
+    contact: { ...baseContact, ...detailContact },
+  };
+}
+
+async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<string>) {
+  const pending = sourceContacts.filter((contact) => {
+    const uuid = contactUuid(contact);
+    return uuid && !enrichedUuids.has(uuid);
+  });
+  const enriched = new Map<string, unknown>();
+
+  // O RD limita a API a 120 requisições/minuto. Dois detalhes por segundo
+  // mantém margem para a requisição da segmentação e evita novos 429.
+  for (let index = 0; index < pending.length; index += 2) {
+    const pair = pending.slice(index, index + 2);
+    const results = await Promise.all(
+      pair.map(async (summary) => {
+        const uuid = contactUuid(summary);
+        try {
+          const detail = await rdGet(`${RD_API_BASE}/platform/contacts/${encodeURIComponent(uuid)}`);
+          return [
+            uuid,
+            {
+              ...mergeContactDetails(summary, detail.payload),
+              __rdDetailsEnrichedAt: new Date().toISOString(),
+            },
+          ] as const;
+        } catch {
+          return [uuid, summary] as const;
+        }
+      }),
+    );
+    results.forEach(([uuid, contact]) => enriched.set(uuid, contact));
+    if (index + 2 < pending.length) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  return sourceContacts.map((summary) => {
+    const uuid = contactUuid(summary);
+    return enriched.get(uuid) ?? summary;
+  });
+}
+
 function extractSegmentations(payload: unknown): RdSegmentation[] {
   if (Array.isArray(payload)) return payload as RdSegmentation[];
   if (!payload || typeof payload !== "object") return [];
@@ -210,8 +279,19 @@ export async function importNextRdBatch(): Promise<RdSyncBatch> {
   try {
     const result = await rdGet(url.toString());
     const sourceContacts = extractRdContacts(result.payload);
+    const sourceUuids = sourceContacts.map(contactUuid).filter(Boolean);
+    const enrichedRows = sourceUuids.length
+      ? ((await sql`
+          SELECT rd_uuid
+          FROM leads
+          WHERE rd_uuid = ANY(${sourceUuids}::text[])
+            AND additional_data ? 'rdDetailsEnrichedAt'
+        `) as Array<{ rd_uuid: string }> )
+      : [];
+    const enrichedUuids = new Set(enrichedRows.map((row) => String(row.rd_uuid)));
+    const detailedContacts = await enrichContacts(sourceContacts, enrichedUuids);
     const byUuid = new Map<string, Lead>();
-    sourceContacts.forEach((contact) => {
+    detailedContacts.forEach((contact) => {
       const lead = normalizeRdContact(contact);
       if (lead?.rdUuid) byUuid.set(lead.rdUuid, lead);
     });

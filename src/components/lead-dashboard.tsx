@@ -1600,6 +1600,19 @@ export function LeadDashboard({
                     </div>
                   </section>
                 )}
+                {selectedLead.additionalData?.rdEmailWarning && (
+                  <section className="email-warning-card" role="alert">
+                    <span aria-hidden="true">!</span>
+                    <div>
+                      <strong>E-mail com restrição no RD Station</strong>
+                      <small>
+                        Este endereço foi marcado como inválido, bloqueado ou desativado.
+                        {selectedLead.additionalData.rdEmailWarning !== "true" &&
+                          ` Status informado: ${selectedLead.additionalData.rdEmailWarning}.`}
+                      </small>
+                    </div>
+                  </section>
+                )}
                 <div className="details-grid">
                   <div>
                     <span>E-mail</span>
