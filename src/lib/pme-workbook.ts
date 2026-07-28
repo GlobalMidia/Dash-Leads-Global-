@@ -128,11 +128,16 @@ function moneyValue(value: string) {
 }
 
 function sourceData(headers: string[], row: string[]) {
-  return Object.fromEntries(
-    headers.map((header, index) => [text(header) || `Coluna ${index + 1}`, text(row[index])])
-      .filter(([, value]) => Boolean(value))
-      .slice(0, 40),
-  );
+  const data: Record<string, string> = {};
+  // Algumas abas têm milhares de células apenas com formatação. Os dados reais
+  // ficam nas primeiras colunas; limitar a leitura evita que o layout vazio
+  // seja interpretado como conteúdo da importação.
+  const columnLimit = Math.min(Math.max(headers.length, row.length), 200);
+  for (let index = 0; index < columnLimit && Object.keys(data).length < 40; index += 1) {
+    const value = text(row[index]);
+    if (value) data[text(headers[index]) || `Coluna ${index + 1}`] = value;
+  }
+  return data;
 }
 
 function categoryForSheet(sheetName: string) {
@@ -143,10 +148,14 @@ function categoryForSheet(sheetName: string) {
 }
 
 function parseSheet(name: string, rows: SheetRows) {
-  const firstRow = rows[0] ?? [];
   const sheetWithoutHeaders = normalized(name) === "planilha2";
-  const headers = sheetWithoutHeaders ? ["empresa", "telefone", "responsavel"] : firstRow;
-  const start = sheetWithoutHeaders ? 0 : 1;
+  const headerRow = sheetWithoutHeaders
+    ? -1
+    : rows.findIndex((row) => headerIndex(row, "empresa", "empresas") >= 0);
+  const headers = sheetWithoutHeaders
+    ? ["empresa", "telefone", "responsavel"]
+    : rows[Math.max(headerRow, 0)] ?? [];
+  const start = sheetWithoutHeaders ? 0 : Math.max(headerRow, 0) + 1;
   const companyIndex = headerIndex(headers, "empresa", "empresas");
   const phoneIndex = headerIndex(headers, "telefone", "contato");
   const contactIndex = headerIndex(headers, "responsavel", "nome");
@@ -163,8 +172,19 @@ function parseSheet(name: string, rows: SheetRows) {
     .filter(({ header }) => /adquiriu|pos gravacao|pos exibicao|fraudulento|status/.test(header));
 
   return rows.slice(start).flatMap((row, offset) => {
-    const companyName = valueAt(row, companyIndex >= 0 ? companyIndex : 0);
-    if (!companyName || !normalizeCompany(companyName)) return [];
+    const hasContent = row.some((value) => Boolean(text(value)));
+    if (!hasContent) return [];
+    const sourceRow = offset + start + 1;
+    const contactName = valueAt(row, contactIndex);
+    const phone = valueAt(row, phoneIndex);
+    const sourceCompany = valueAt(row, companyIndex >= 0 ? companyIndex : 0);
+    // Nenhuma linha preenchida é descartada: quando a origem não trouxe a
+    // empresa, mantemos o registro com uma identificação clara para revisão.
+    const companyName = sourceCompany || (contactName
+      ? `Empresa não informada — ${contactName}`
+      : phone
+        ? `Empresa não informada — ${phone}`
+        : `Empresa não informada — ${name}, linha ${sourceRow}`);
     const notes = noteIndexes
       .map(({ header, index }) => {
         const value = valueAt(row, index);
@@ -181,11 +201,11 @@ function parseSheet(name: string, rows: SheetRows) {
       .join(" · ");
     return [{
       sourceSheet: name,
-      sourceRow: offset + start + 1,
+      sourceRow,
       category: categoryForSheet(name),
       companyName,
-      contactName: valueAt(row, contactIndex),
-      phone: valueAt(row, phoneIndex),
+      contactName,
+      phone,
       website: valueAt(row, websiteIndex),
       historicStatus,
       historicValue: moneyValue(valueAt(row, valueIndex)),
@@ -201,13 +221,9 @@ function parseSheet(name: string, rows: SheetRows) {
 export function parsePmeWorkbook(buffer: ArrayBuffer): PmeWorkbookPreview {
   const sheets = workbookSheets(buffer);
   const records = sheets.flatMap(({ name, rows }) => parseSheet(name, rows));
-  const populatedRows = sheets.reduce(
-    (total, { name, rows }) => total + Math.max(rows.length - (normalized(name) === "planilha2" ? 0 : 1), 0),
-    0,
-  );
   return {
     records,
-    ignoredRows: Math.max(populatedRows - records.length, 0),
+    ignoredRows: 0,
     sourceSheets: sheets.map((sheet) => sheet.name),
   };
 }
