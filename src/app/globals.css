@@ -2283,6 +2283,79 @@ td {
   white-space: nowrap;
 }
 
+.commercial-data-card {
+  overflow: hidden;
+  margin: 16px 23px 0;
+  border: 1px solid #d5e5fc;
+  border-radius: 12px;
+  background: #f9fbff;
+}
+
+.commercial-data-card > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid #e1ebfa;
+  background: #f3f8ff;
+  padding: 11px 12px;
+}
+
+.commercial-data-card > header > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  color: #216be0;
+  background: #e1efff;
+}
+
+.commercial-data-card > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.commercial-data-card strong {
+  color: #304d79;
+  font-size: 10px;
+}
+
+.commercial-data-card small {
+  color: #72829b;
+  font-size: 8px;
+}
+
+.commercial-data-card dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 12px;
+}
+
+.commercial-data-card dl > div {
+  min-width: 0;
+}
+
+.commercial-data-card dt {
+  color: #7689a6;
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.commercial-data-card dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #2e4a74;
+  font-size: 10px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .history-panel {
   min-height: 350px;
   padding: 18px 23px 8px;

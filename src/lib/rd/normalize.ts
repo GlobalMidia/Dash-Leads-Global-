@@ -26,6 +26,116 @@ function normalizedValue(value: unknown) {
     : "";
 }
 
+function normalizedKey(value: string) {
+  return normalizedValue(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scalarValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value.map(scalarValue).find(Boolean) ?? "";
+  }
+  if (value && typeof value === "object") {
+    const record = value as UnknownRecord;
+    for (const key of ["value", "content", "answer", "text", "pt-BR", "pt_BR"]) {
+      const resolved = scalarValue(record[key]);
+      if (resolved) return resolved;
+    }
+  }
+  return "";
+}
+
+/**
+ * O RD devolve campos personalizados tanto no objeto principal quanto dentro
+ * de custom_fields. Os identificadores sÃ£o configurÃ¡veis por conta, portanto
+ * procuramos pelo rÃ³tulo/identificador normalizado em vez de depender de uma
+ * Ãºnica chave fixa.
+ */
+function customFieldValue(input: unknown, aliases: string[]) {
+  const aliasKeys = aliases.map(normalizedKey);
+  const visited = new WeakSet<object>();
+
+  const isMatch = (key: string) => {
+    const normalized = normalizedKey(key);
+    return aliasKeys.some(
+      (alias) =>
+        normalized === alias ||
+        normalized.endsWith(` ${alias}`) ||
+        normalized.includes(alias),
+    );
+  };
+
+  const visit = (value: unknown, depth: number): string => {
+    if (depth > 5 || !value || typeof value !== "object") return "";
+    if (visited.has(value)) return "";
+    visited.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item, depth + 1);
+        if (found) return found;
+      }
+      return "";
+    }
+
+    const record = value as UnknownRecord;
+    const fieldIdentifier = scalarValue(
+      record.api_identifier ?? record.identifier ?? record.field_name ?? record.name ?? record.label,
+    );
+    if (fieldIdentifier && isMatch(fieldIdentifier)) {
+      const direct = scalarValue(record.value ?? record.content ?? record.answer ?? record.data);
+      if (direct) return direct;
+    }
+
+    for (const [key, nested] of Object.entries(record)) {
+      if (isMatch(key)) {
+        const direct = scalarValue(nested);
+        if (direct) return direct;
+      }
+    }
+    for (const nested of Object.values(record)) {
+      const found = visit(nested, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  };
+
+  return visit(input, 0);
+}
+
+function commercialCrmData(input: unknown) {
+  const opportunityValue = customFieldValue(input, [
+    "valor total da oportunidade no crm",
+    "valor da oportunidade no crm",
+    "valor total da oportunidade",
+  ]);
+  const salesStage = customFieldValue(input, [
+    "etapa do funil de vendas no crm",
+    "etapa do funil no crm",
+  ]);
+  const salesFunnel = customFieldValue(input, ["funil de vendas no crm"]);
+  const opportunityQualification = customFieldValue(input, [
+    "qualificacao da oportunidade no crm",
+  ]);
+  const opportunityOwner = customFieldValue(input, [
+    "nome do responsavel pela oportunidade no crm",
+    "responsavel pela oportunidade no crm",
+  ]);
+
+  return {
+    ...(opportunityValue ? { rdOpportunityValue: opportunityValue } : {}),
+    ...(salesStage ? { rdCrmSalesStage: salesStage } : {}),
+    ...(salesFunnel ? { rdCrmSalesFunnel: salesFunnel } : {}),
+    ...(opportunityQualification ? { rdCrmQualification: opportunityQualification } : {}),
+    ...(opportunityOwner ? { rdCrmOwner: opportunityOwner } : {}),
+  };
+}
+
 function booleanValue(...values: unknown[]) {
   return values.some((value) => value === true || value === 1 || value === "true");
 }
@@ -145,6 +255,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
   const organization = asRecord(contact.organization);
   const email = stringValue(contact.email, root.email);
   const rdUuid = stringValue(contact.uuid, contact.id, root.uuid, root.id);
+  const crmData = commercialCrmData(input);
 
   if (!email || !rdUuid || isInternalEmail(email)) return null;
 
@@ -166,11 +277,12 @@ export function normalizeRdContact(input: unknown): Lead | null {
     funnel.stage,
     funnel.stage_name,
     funnel.name,
+    crmData.rdCrmSalesStage,
   );
   const stageText = normalizedValue(stage);
   const status =
     root.event_type === "WEBHOOK.MARKED_OPPORTUNITY" ||
-    ["qualified", "qualificado", "oportunidade", "opportunity", "mql", "sql"].some((term) =>
+    ["qualified", "qualificado", "oportunidade", "opportunity", "mql", "sql", "negociacao", "negotiation"].some((term) =>
       stageText.includes(term),
     )
       ? "qualified"
@@ -243,6 +355,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
       ...(contact.last_conversion_date
         ? { rdLastConversionAt: String(contact.last_conversion_date) }
         : {}),
+      ...crmData,
     },
   };
 }

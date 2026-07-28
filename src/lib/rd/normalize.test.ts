@@ -37,4 +37,28 @@ describe("RD contact normalization", () => {
 
     expect(lead?.additionalData?.rdEmailWarning).toBe("bounced");
   });
+
+  it("keeps CRM opportunity fields and recognizes negotiation as qualified", () => {
+    const lead = normalizeRdContact({
+      uuid: "rd-3",
+      name: "Ezatta",
+      email: "comercial@ezattaequipamentos.com.br",
+      cf_valor_total_da_oportunidade_no_crm: "7500.0",
+      cf_etapa_do_funil_de_vendas_no_crm: "NegociaÃ§Ã£o",
+      cf_funil_de_vendas_no_crm: "Funil de Vendas",
+      cf_qualificacao_da_oportunidade_no_crm: "1",
+      cf_nome_do_responsavel_pela_oportunidade_no_crm: "Agatha Silveira",
+    });
+
+    expect(lead).toMatchObject({
+      status: "qualified",
+      additionalData: {
+        rdOpportunityValue: "7500.0",
+        rdCrmSalesStage: "NegociaÃ§Ã£o",
+        rdCrmSalesFunnel: "Funil de Vendas",
+        rdCrmQualification: "1",
+        rdCrmOwner: "Agatha Silveira",
+      },
+    });
+  });
 });

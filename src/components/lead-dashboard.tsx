@@ -83,6 +83,22 @@ const DEFAULT_FILTERS: DashboardFilters = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200, 500] as const;
 const ORIGIN_COLORS = ["#2f7df4", "#17b6a4", "#ff9f43", "#7257d8", "#e95e6b"];
+const RD_MANAGED_ADDITIONAL_DATA_KEYS = new Set([
+  "rdDetailsEnrichedAt",
+  "rdContactName",
+  "rdContactEmail",
+  "rdContactPhone",
+  "rdEmailWarning",
+  "rdStage",
+  "rdOrigin",
+  "rdLastConversionAt",
+  "rdOpportunityValue",
+  "rdCrmSalesStage",
+  "rdCrmSalesFunnel",
+  "rdCrmQualification",
+  "rdCrmOwner",
+]);
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -110,6 +126,40 @@ function initials(name: string) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+}
+
+function shouldRefreshRdDetails(lead: Lead) {
+  const lastEnrichedAt = lead.additionalData?.rdDetailsEnrichedAt;
+  if (!lastEnrichedAt) return true;
+  const timestamp = Date.parse(lastEnrichedAt);
+  return Number.isNaN(timestamp) || Date.now() - timestamp > 60 * 60 * 1000;
+}
+
+function formatOpportunityValue(value?: string) {
+  if (!value) return "";
+  const sanitized = value.replace(/[^\d,.-]/g, "");
+  const normalizedNumber =
+    sanitized.includes(",") && sanitized.includes(".")
+      ? sanitized.replace(/\./g, "").replace(",", ".")
+      : sanitized.replace(",", ".");
+  const numericValue = Number(normalizedNumber);
+  if (!Number.isFinite(numericValue)) return value;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(numericValue);
+}
+
+function additionalDataLabel(label: string) {
+  const labels: Record<string, string> = {
+    rdWebsite: "Site informado no RD",
+    rdLinkedin: "LinkedIn informado no RD",
+    rdInstagram: "Instagram informado no RD",
+    rdFacebook: "Facebook informado no RD",
+  };
+  return labels[label] ?? label.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
 }
 
 function MetricCard({
@@ -419,11 +469,7 @@ export function LeadDashboard({
     setNotesDraft(lead.notes);
     setCompanyProfileDraft(lead.companyProfileUrl ?? "");
     setDetailsTab("details");
-    if (
-      mode === "live" &&
-      lead.rdUuid &&
-      !lead.additionalData?.rdDetailsEnrichedAt
-    ) {
+    if (mode === "live" && lead.rdUuid && shouldRefreshRdDetails(lead)) {
       void loadRdDetailsForLead(lead.id);
     }
   }
@@ -1656,7 +1702,8 @@ export function LeadDashboard({
               </button>
             </nav>
 
-            {selectedLead.rdUuid && !selectedLead.additionalData?.rdDetailsEnrichedAt && (
+            {selectedLead.rdUuid &&
+              (enrichingLeadId === selectedLead.id || shouldRefreshRdDetails(selectedLead)) && (
               <div className="rd-details-loading" role="status">
                 <RefreshCw
                   className={enrichingLeadId === selectedLead.id ? "animate-spin" : ""}
@@ -1666,7 +1713,7 @@ export function LeadDashboard({
                   ? "Buscando telefone e informações complementares no RD Station..."
                   : "Detalhes completos serão buscados no RD Station ao abrir este perfil."}
               </div>
-            )}
+              )}
 
             {detailsTab === "details" ? (
               <>
@@ -1723,6 +1770,55 @@ export function LeadDashboard({
                           ` Status informado: ${selectedLead.additionalData.rdEmailWarning}.`}
                       </small>
                     </div>
+                  </section>
+                )}
+                {(selectedLead.additionalData?.rdOpportunityValue ||
+                  selectedLead.additionalData?.rdCrmSalesStage ||
+                  selectedLead.additionalData?.rdCrmSalesFunnel ||
+                  selectedLead.additionalData?.rdCrmQualification ||
+                  selectedLead.additionalData?.rdCrmOwner) && (
+                  <section className="commercial-data-card">
+                    <header>
+                      <span>
+                        <BriefcaseBusiness size={16} />
+                      </span>
+                      <div>
+                        <strong>Oportunidade no CRM</strong>
+                        <small>Dados comerciais recebidos do RD Station</small>
+                      </div>
+                    </header>
+                    <dl>
+                      {selectedLead.additionalData?.rdCrmSalesStage && (
+                        <div>
+                          <dt>Etapa comercial</dt>
+                          <dd>{selectedLead.additionalData.rdCrmSalesStage}</dd>
+                        </div>
+                      )}
+                      {selectedLead.additionalData?.rdOpportunityValue && (
+                        <div>
+                          <dt>Valor da oportunidade</dt>
+                          <dd>{formatOpportunityValue(selectedLead.additionalData.rdOpportunityValue)}</dd>
+                        </div>
+                      )}
+                      {selectedLead.additionalData?.rdCrmSalesFunnel && (
+                        <div>
+                          <dt>Funil de vendas</dt>
+                          <dd>{selectedLead.additionalData.rdCrmSalesFunnel}</dd>
+                        </div>
+                      )}
+                      {selectedLead.additionalData?.rdCrmOwner && (
+                        <div>
+                          <dt>Responsável</dt>
+                          <dd>{selectedLead.additionalData.rdCrmOwner}</dd>
+                        </div>
+                      )}
+                      {selectedLead.additionalData?.rdCrmQualification && (
+                        <div>
+                          <dt>Qualificação no CRM</dt>
+                          <dd>{selectedLead.additionalData.rdCrmQualification}</dd>
+                        </div>
+                      )}
+                    </dl>
                   </section>
                 )}
                 <div className="details-grid">
@@ -1839,7 +1935,9 @@ export function LeadDashboard({
                 )}
 
                 {selectedLead.additionalData &&
-                  Object.keys(selectedLead.additionalData).length > 0 && (
+                  Object.entries(selectedLead.additionalData).some(
+                    ([label]) => !RD_MANAGED_ADDITIONAL_DATA_KEYS.has(label),
+                  ) && (
                     <section className="additional-data-card">
                       <header>
                         <div>
@@ -1853,10 +1951,12 @@ export function LeadDashboard({
                         </div>
                       </header>
                       <dl>
-                        {Object.entries(selectedLead.additionalData).map(
+                        {Object.entries(selectedLead.additionalData)
+                          .filter(([label]) => !RD_MANAGED_ADDITIONAL_DATA_KEYS.has(label))
+                          .map(
                           ([label, value]) => (
                             <div key={label}>
-                              <dt>{label}</dt>
+                              <dt>{additionalDataLabel(label)}</dt>
                               <dd>{value}</dd>
                             </div>
                           ),
