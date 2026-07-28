@@ -35,3 +35,24 @@ export type PmeDirectoryData = {
   importedRecords: number;
   latestImportAt: string | null;
 };
+
+export type PmeCompanyRecord = {
+  id: string;
+  sourceSheet: string;
+  sourceRow: number;
+  category: string;
+  contactName: string;
+  phone: string;
+  website: string;
+  historicStatus: string;
+  historicValue: number | null;
+  recordedAt: string | null;
+  contactAt: string | null;
+  displayedAt: string | null;
+  notes: string;
+  sourceData: Record<string, string>;
+};
+
+export type PmeCompanyDetails = PmeCompany & {
+  records: PmeCompanyRecord[];
+};

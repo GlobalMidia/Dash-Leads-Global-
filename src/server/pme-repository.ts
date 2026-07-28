@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeCompany } from "@/lib/lead-normalization";
 import { getSql } from "@/server/db";
 import { isLiveMode } from "@/server/lead-repository";
-import type { PmeCompany, PmeDirectoryData, PmeImportRecord } from "@/types/pme";
+import type { PmeCompany, PmeCompanyDetails, PmeCompanyRecord, PmeDirectoryData, PmeImportRecord } from "@/types/pme";
 
 type Row = Record<string, unknown>;
 
@@ -34,6 +34,25 @@ function mapCompany(row: Row): PmeCompany {
     categories: Array.isArray(row.categories) ? row.categories.map(String) : [],
     sourceSheets: Array.isArray(row.source_sheets) ? row.source_sheets.map(String) : [],
     recordCount: Number(row.record_count ?? 0),
+  };
+}
+
+function mapCompanyRecord(row: Row): PmeCompanyRecord {
+  return {
+    id: String(row.id),
+    sourceSheet: String(row.source_sheet),
+    sourceRow: Number(row.source_row),
+    category: String(row.category),
+    contactName: String(row.contact_name ?? ""),
+    phone: String(row.phone ?? ""),
+    website: String(row.website ?? ""),
+    historicStatus: String(row.historic_status ?? ""),
+    historicValue: row.historic_value === null || row.historic_value === undefined ? null : Number(row.historic_value),
+    recordedAt: row.recorded_at ? new Date(String(row.recorded_at)).toISOString() : null,
+    contactAt: row.contact_at ? new Date(String(row.contact_at)).toISOString() : null,
+    displayedAt: row.displayed_at ? new Date(String(row.displayed_at)).toISOString() : null,
+    notes: String(row.notes ?? ""),
+    sourceData: row.source_data && typeof row.source_data === "object" ? row.source_data as Record<string, string> : {},
   };
 }
 
@@ -72,6 +91,24 @@ export async function getPmeDirectory(): Promise<PmeDirectoryData> {
     importedRecords: Number(summary.imported_records ?? 0),
     latestImportAt: summary.latest_import_at ? new Date(String(summary.latest_import_at)).toISOString() : null,
   };
+}
+
+export async function getPmeCompanyDetails(normalizedCompany: string): Promise<PmeCompanyDetails | null> {
+  if (!isLiveMode()) return null;
+  const sql = getSql();
+  const [companies, records] = await Promise.all([
+    sql.query(`${companyQuery.replace("GROUP BY normalized_company", "WHERE normalized_company = $1 GROUP BY normalized_company")}`, [normalizedCompany]) as Promise<Row[]>,
+    sql.query(`
+      SELECT id, source_sheet, source_row, category, contact_name, phone, website,
+        historic_status, historic_value, recorded_at, contact_at, displayed_at, notes, source_data
+      FROM pme_reactivation_records
+      WHERE normalized_company = $1
+      ORDER BY COALESCE(contact_at, displayed_at, recorded_at) DESC NULLS LAST, source_sheet, source_row
+      LIMIT 1000
+    `, [normalizedCompany]) as Promise<Row[]>,
+  ]);
+  const company = companies[0];
+  return company ? { ...mapCompany(company), records: records.map(mapCompanyRecord) } : null;
 }
 
 export async function importPmeRecords(input: PmeImportInput, actor?: { userId?: string; email?: string; name?: string }) {
