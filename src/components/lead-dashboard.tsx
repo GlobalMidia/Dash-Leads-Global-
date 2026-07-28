@@ -333,6 +333,7 @@ export function LeadDashboard({
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
+  const [companyProfileDraft, setCompanyProfileDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -413,6 +414,7 @@ export function LeadDashboard({
   function openLeadDetails(lead: Lead) {
     setSelectedLeadId(lead.id);
     setNotesDraft(lead.notes);
+    setCompanyProfileDraft(lead.companyProfileUrl ?? "");
     setDetailsTab("details");
   }
 
@@ -447,6 +449,11 @@ export function LeadDashboard({
 
     const before = leads;
     const notes = notesDraft.trim();
+    const companyProfileUrl = companyProfileDraft.trim();
+    if (companyProfileUrl && !/^https?:\/\/[^\s]+$/i.test(companyProfileUrl)) {
+      setNotice("O link da empresa deve começar com http:// ou https://.");
+      return;
+    }
     const occurredAt = new Date().toISOString();
     setLeads((current) =>
       current.map((lead) =>
@@ -454,14 +461,13 @@ export function LeadDashboard({
           ? {
               ...lead,
               notes,
+              companyProfileUrl,
               updatedAt: occurredAt,
               history: [
                 {
                   id: `notes-${occurredAt}`,
-                  title: "Observação atualizada",
-                  description: notes
-                    ? "O conteúdo das observações foi atualizado."
-                    : "As observações do lead foram removidas.",
+                  title: "Detalhes atualizados",
+                  description: "As observações e o link profissional da empresa foram atualizados.",
                   actor: user.name,
                   actorEmail: user.email,
                   occurredAt,
@@ -486,7 +492,7 @@ export function LeadDashboard({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notes }),
+          body: JSON.stringify({ notes, companyProfileUrl }),
         },
       );
       const data = (await response.json()) as { error?: string };
@@ -1275,6 +1281,16 @@ export function LeadDashboard({
                               <Building2 size={13} />
                               {lead.company || "Não informada"}
                             </span>
+                            {lead.companyProfileUrl && (
+                              <a
+                                className="company-profile-link"
+                                href={lead.companyProfileUrl}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Perfil da empresa
+                              </a>
+                            )}
                             {lead.companyGroupId &&
                               (companyGroupSizes.get(lead.companyGroupId) ?? 0) >
                                 1 && (
@@ -1542,6 +1558,48 @@ export function LeadDashboard({
 
             {detailsTab === "details" ? (
               <>
+                {(selectedLead.additionalData?.rdContactName ||
+                  selectedLead.additionalData?.rdContactEmail ||
+                  selectedLead.additionalData?.rdContactPhone) && (
+                  <section className="associated-contact-card">
+                    <header>
+                      <UserCheck size={16} />
+                      <div>
+                        <strong>Contato associado no RD Station</strong>
+                        <small>Dados de uma pessoa vinculada ao mesmo perfil</small>
+                      </div>
+                    </header>
+                    <div className="associated-contact-values">
+                      {selectedLead.additionalData?.rdContactName && (
+                        <strong>{selectedLead.additionalData.rdContactName}</strong>
+                      )}
+                      {selectedLead.additionalData?.rdContactEmail && (
+                        <button
+                          onClick={() =>
+                            copyContact(selectedLead.additionalData?.rdContactEmail ?? "", "E-mail")
+                          }
+                          type="button"
+                        >
+                          <Mail size={13} />
+                          {selectedLead.additionalData.rdContactEmail}
+                          <ClipboardCopy className="copy-hint" size={12} />
+                        </button>
+                      )}
+                      {selectedLead.additionalData?.rdContactPhone && (
+                        <button
+                          onClick={() =>
+                            copyContact(selectedLead.additionalData?.rdContactPhone ?? "", "Telefone")
+                          }
+                          type="button"
+                        >
+                          <Phone size={13} />
+                          {selectedLead.additionalData.rdContactPhone}
+                          <ClipboardCopy className="copy-hint" size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                )}
                 <div className="details-grid">
                   <div>
                     <span>E-mail</span>
@@ -1681,6 +1739,23 @@ export function LeadDashboard({
                       </dl>
                     </section>
                   )}
+
+                <label className="notes-field company-profile-field">
+                  <span>
+                    <span>
+                      <Building2 size={15} />
+                      Link profissional da empresa
+                    </span>
+                    <small>Site, Instagram, LinkedIn ou Facebook</small>
+                  </span>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    onChange={(event) => setCompanyProfileDraft(event.target.value)}
+                    placeholder="https://exemplo.com/perfil-da-empresa"
+                    value={companyProfileDraft}
+                  />
+                </label>
 
                 <label className="notes-field">
                   <span>

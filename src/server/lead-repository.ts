@@ -31,6 +31,7 @@ export type AuditActor = {
 export type LeadPatch = {
   status?: LeadStatus;
   origin?: LeadOrigin;
+  companyProfileUrl?: string;
   notes?: string;
 };
 
@@ -86,6 +87,9 @@ function mapRow(row: DatabaseRow): Lead {
     rdUuid: row.rd_uuid ? String(row.rd_uuid) : null,
     name: String(row.name),
     company: row.company ? String(row.company) : "",
+    companyProfileUrl: row.company_profile_url
+      ? String(row.company_profile_url)
+      : "",
     email: row.email ? String(row.email) : "",
     phone: row.phone ? String(row.phone) : "",
     origin: normalizeLeadOrigin(row.origin ? String(row.origin) : ""),
@@ -175,6 +179,7 @@ export async function updateLead(
   const sql = getSql();
   const status = patch.status ?? null;
   const origin = patch.origin ?? null;
+  const companyProfileUrl = patch.companyProfileUrl ?? null;
   const notes = patch.notes ?? null;
   const title = patch.status
     ? "Qualificação alterada"
@@ -197,6 +202,7 @@ export async function updateLead(
       SET
         status = COALESCE(${status}, status),
         origin = COALESCE(${origin}, origin),
+        company_profile_url = COALESCE(${companyProfileUrl}, company_profile_url),
         notes = COALESCE(${notes}, notes),
         updated_at = NOW()
       WHERE id = ${id}::uuid
@@ -216,7 +222,7 @@ export async function updateLead(
       SELECT
         ${actor.userId ?? null}::uuid,
         ${actor.email ?? null},
-        ${patch.status ? "lead.status_updated" : patch.origin ? "lead.origin_updated" : "lead.notes_updated"},
+        ${patch.status ? "lead.status_updated" : patch.origin ? "lead.origin_updated" : patch.companyProfileUrl !== undefined ? "lead.company_profile_updated" : "lead.notes_updated"},
         'lead',
         updated.id::text,
         to_jsonb(previous),

@@ -56,6 +56,42 @@ function firstPhone(contact: UnknownRecord) {
   );
 }
 
+function associatedContactData(contact: UnknownRecord, root: UnknownRecord) {
+  const candidates: UnknownRecord[] = [];
+  for (const key of [
+    "person",
+    "contact_person",
+    "associated_contact",
+    "owner",
+  ]) {
+    const value = asRecord(contact[key]);
+    if (Object.keys(value).length) candidates.push(value);
+  }
+  for (const key of ["person", "contact_person", "associated_contact"]) {
+    const value = asRecord(root[key]);
+    if (Object.keys(value).length) candidates.push(value);
+  }
+  for (const key of ["contacts", "people", "associated_contacts"]) {
+    if (!Array.isArray(contact[key])) continue;
+    candidates.push(
+      ...(contact[key] as unknown[]).map(asRecord).filter((item) => Object.keys(item).length),
+    );
+  }
+
+  const person = candidates.find((item) =>
+    stringValue(item.full_name, item.name, item.first_name, item.email),
+  );
+  if (!person) return {};
+  const personName = stringValue(person.full_name, person.name, person.first_name);
+  const personEmail = stringValue(person.email, person.email_address);
+  const personPhone = firstPhone(person);
+  return {
+    ...(personName ? { rdContactName: personName } : {}),
+    ...(personEmail ? { rdContactEmail: personEmail } : {}),
+    ...(personPhone ? { rdContactPhone: personPhone } : {}),
+  };
+}
+
 function safeIsoDate(value: unknown) {
   if (typeof value === "string") {
     const date = new Date(value);
@@ -155,6 +191,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
     notes: "",
     updatedAt: new Date().toISOString(),
     additionalData: {
+      ...associatedContactData(contact, root),
       ...(stage ? { rdStage: stage } : {}),
       ...(rawOrigin ? { rdOrigin: rawOrigin } : {}),
       ...(contact.last_conversion_date

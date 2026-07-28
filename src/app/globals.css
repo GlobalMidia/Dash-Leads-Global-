@@ -1039,6 +1039,75 @@ td {
   font-weight: 650;
 }
 
+.company-profile-field input {
+  width: 100%;
+  border: 1px solid #e1e6ee;
+  border-radius: 9px;
+  color: #344057;
+  background: #fff;
+  padding: 10px 11px;
+  font-size: 11px;
+}
+
+.company-profile-link {
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.company-profile-link:hover {
+  text-decoration: underline;
+}
+
+.associated-contact-card {
+  margin: 0 19px 14px;
+  border: 1px solid #dfe8f5;
+  border-radius: 11px;
+  background: #f7faff;
+  padding: 12px;
+}
+
+.associated-contact-card header,
+.associated-contact-values {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.associated-contact-card header {
+  color: var(--blue);
+}
+
+.associated-contact-card header div {
+  display: grid;
+  gap: 2px;
+}
+
+.associated-contact-card header strong {
+  color: #344057;
+  font-size: 11px;
+}
+
+.associated-contact-card header small {
+  color: #8390a5;
+  font-size: 9px;
+}
+
+.associated-contact-values {
+  flex-wrap: wrap;
+  margin-top: 9px;
+  color: #4f5d74;
+  font-size: 10px;
+}
+
+.associated-contact-values button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: inherit;
+}
+
 .date-value {
   color: #68758a;
 }

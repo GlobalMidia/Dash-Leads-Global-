@@ -12,6 +12,14 @@ const schema = z
   .object({
     status: z.enum(LEAD_STATUSES).optional(),
     origin: z.enum(LEAD_ORIGINS).optional(),
+    companyProfileUrl: z
+      .string()
+      .trim()
+      .max(500)
+      .refine((value) => !value || /^https?:\/\/[^\s]+$/i.test(value), {
+        message: "O link deve começar com http:// ou https://.",
+      })
+      .optional(),
     notes: z.string().trim().max(280).optional(),
   })
   .refine(

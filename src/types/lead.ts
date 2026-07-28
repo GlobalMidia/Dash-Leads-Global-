@@ -30,6 +30,7 @@ export type Lead = {
   rdUuid: string | null;
   name: string;
   company: string;
+  companyProfileUrl?: string;
   email: string;
   phone: string;
   origin: string;
