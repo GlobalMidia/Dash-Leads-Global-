@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -25,6 +24,8 @@ export function PmeReactivationDirectory({
   user,
 }: PmeReactivationDirectoryProps) {
   const { preferences, resolvedTheme } = useProfilePreferences(user.email);
+  const goToDashboard = () => window.location.assign("/");
+  const goToPmeTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
     <div
@@ -35,13 +36,18 @@ export function PmeReactivationDirectory({
       data-theme={resolvedTheme}
     >
       <header className="topbar">
-        <Link className="brand-lockup" href="/" aria-label="Voltar ao painel de leads">
+        <button
+          className="brand-lockup"
+          aria-label="Voltar ao painel de leads"
+          onClick={goToDashboard}
+          type="button"
+        >
           <span className="brand-mark">G</span>
           <span className="brand-copy">
             <strong>Global Mídia</strong>
             <small>LEADS</small>
           </span>
-        </Link>
+        </button>
         <div className="topbar-actions">
           <span className={`mode-pill ${mode}`}>
             <span className="mode-dot" />
@@ -58,21 +64,24 @@ export function PmeReactivationDirectory({
       </header>
 
       <aside className="side-rail" aria-label="Navegação principal">
-        <Link
+        <button
           aria-label="Voltar ao dashboard"
           className="rail-button"
-          href="/"
+          onClick={goToDashboard}
           title="Painel de leads"
+          type="button"
         >
           <LayoutDashboard size={19} />
-        </Link>
-        <span
+        </button>
+        <button
           aria-label="PME e reativação"
           className="rail-button active"
+          onClick={goToPmeTop}
           title="PME e reativação"
+          type="button"
         >
           <BriefcaseBusiness size={19} />
-        </span>
+        </button>
       </aside>
 
       <main className="dashboard-main pme-directory">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   ArrowDownToLine,
   BarChart3,
@@ -426,6 +425,14 @@ export function LeadDashboard({
     ) {
       void loadRdDetailsForLead(lead.id);
     }
+  }
+
+  function goToPmeDirectory() {
+    window.location.assign("/pme");
+  }
+
+  function goToDashboardTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function loadRdDetailsForLead(id: string) {
@@ -959,7 +966,17 @@ export function LeadDashboard({
           >
             {user.initials}
           </button>
-          <button className="icon-button" aria-label="Notificações" type="button">
+          <button
+            aria-label="Notificações"
+            className="icon-button"
+            onClick={() =>
+              setNotice(
+                "Não há novas notificações. Avisos de sincronização e alterações aparecem aqui.",
+              )
+            }
+            title="Ver notificações"
+            type="button"
+          >
             <Bell size={18} strokeWidth={1.9} />
           </button>
           <button
@@ -983,17 +1000,24 @@ export function LeadDashboard({
       </header>
 
       <aside className="side-rail" aria-label="Navegação principal">
-        <button className="rail-button active" aria-label="Dashboard" type="button">
+        <button
+          className="rail-button active"
+          aria-label="Voltar ao topo do dashboard"
+          onClick={goToDashboardTop}
+          title="Painel de leads"
+          type="button"
+        >
           <LayoutDashboard size={19} />
         </button>
-        <Link
+        <button
           aria-label="Abrir PME e reativação"
           className="rail-button"
-          href="/pme"
+          onClick={goToPmeDirectory}
           title="PME e reativação"
+          type="button"
         >
           <BriefcaseBusiness size={19} />
-        </Link>
+        </button>
         <button
           className="rail-button"
           aria-label="Ir para os leads"

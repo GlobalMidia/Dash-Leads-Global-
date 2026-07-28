@@ -81,6 +81,11 @@ select:disabled {
   display: flex;
   align-items: center;
   gap: 11px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  text-align: left;
 }
 
 .brand-mark,
