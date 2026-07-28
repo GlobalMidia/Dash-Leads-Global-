@@ -65,8 +65,7 @@ function customFieldValue(input: unknown, aliases: string[]) {
     return aliasKeys.some(
       (alias) =>
         normalized === alias ||
-        normalized.endsWith(` ${alias}`) ||
-        normalized.includes(alias),
+        normalized === `cf ${alias}`,
     );
   };
 
