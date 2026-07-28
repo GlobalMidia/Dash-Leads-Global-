@@ -147,6 +147,27 @@ function contactUuid(value: unknown) {
   return String(row.uuid ?? row.id ?? nested.uuid ?? nested.id ?? "");
 }
 
+function contactDetailUrl(value: unknown, uuid: string) {
+  if (value && typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    const nested = row.contact && typeof row.contact === "object"
+      ? (row.contact as Record<string, unknown>)
+      : {};
+    const links = Array.isArray(row.links)
+      ? row.links
+      : Array.isArray(nested.links)
+        ? nested.links
+        : [];
+    const selfLink = links
+      .map((item) => (item && typeof item === "object" ? item as Record<string, unknown> : {}))
+      .find((item) => item.rel === "SELF" && typeof item.href === "string");
+    if (typeof selfLink?.href === "string" && selfLink.href.includes("/platform/contacts/")) {
+      return selfLink.href;
+    }
+  }
+  return `${RD_API_BASE}/platform/contacts/${encodeURIComponent(uuid)}`;
+}
+
 function mergeContactDetails(summary: unknown, detailPayload: unknown) {
   const base = summary && typeof summary === "object"
     ? (summary as Record<string, unknown>)
@@ -184,7 +205,7 @@ async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<stri
       pair.map(async (summary) => {
         const uuid = contactUuid(summary);
         try {
-          const detail = await rdGet(`${RD_API_BASE}/platform/contacts/${encodeURIComponent(uuid)}`);
+          const detail = await rdGet(contactDetailUrl(summary, uuid));
           return [
             uuid,
             {
@@ -192,7 +213,11 @@ async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<stri
               __rdDetailsEnrichedAt: new Date().toISOString(),
             },
           ] as const;
-        } catch {
+        } catch (error) {
+          console.warn("[rd-sync] não foi possível enriquecer contato", {
+            uuid,
+            error: error instanceof Error ? error.message : String(error),
+          });
           return [uuid, summary] as const;
         }
       }),
