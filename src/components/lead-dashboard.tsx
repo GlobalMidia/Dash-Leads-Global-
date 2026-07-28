@@ -86,6 +86,7 @@ const ORIGIN_COLORS = ["#2f7df4", "#17b6a4", "#ff9f43", "#7257d8", "#e95e6b"];
 const RD_MANAGED_ADDITIONAL_DATA_KEYS = new Set([
   "rdDetailsEnrichedAt",
   "rdCrmDataCheckedAt",
+  "rdCrmDataMappingVersion",
   "rdContactName",
   "rdContactEmail",
   "rdContactPhone",
@@ -132,7 +133,7 @@ function initials(name: string) {
 function shouldRefreshRdDetails(lead: Lead) {
   // Contatos enriquecidos antes do mapeamento comercial precisam de uma
   // consulta Ãºnica para que os campos de oportunidade tambÃ©m sejam gravados.
-  if (!lead.additionalData?.rdCrmDataCheckedAt) return true;
+  if (lead.additionalData?.rdCrmDataMappingVersion !== "2") return true;
   const lastEnrichedAt = lead.additionalData?.rdDetailsEnrichedAt;
   if (!lastEnrichedAt) return true;
   const timestamp = Date.parse(lastEnrichedAt);

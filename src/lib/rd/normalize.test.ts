@@ -61,4 +61,32 @@ describe("RD contact normalization", () => {
       },
     });
   });
+
+  it("reads CRM custom fields when the RD field definition is nested", () => {
+    const lead = normalizeRdContact({
+      uuid: "rd-4",
+      name: "Empresa CRM",
+      email: "contato@empresa-crm.com",
+      custom_fields: [
+        {
+          field: { api_identifier: "cf_etapa_do_funil_de_vendas_no_crm" },
+          value: "Contato Realizado",
+        },
+        {
+          definition: { name: "Funil de vendas no CRM (ultima atualizacao)" },
+          field_value: "Funil de Vendas",
+        },
+        {
+          custom_field: { label: "Nome do responsavel pela oportunidade no CRM" },
+          value: "Mabel Oliveira",
+        },
+      ],
+    });
+
+    expect(lead?.additionalData).toMatchObject({
+      rdCrmSalesStage: "Contato Realizado",
+      rdCrmSalesFunnel: "Funil de Vendas",
+      rdCrmOwner: "Mabel Oliveira",
+    });
+  });
 });

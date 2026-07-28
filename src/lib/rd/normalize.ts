@@ -3,6 +3,7 @@ import { normalizeLeadOrigin } from "@/lib/lead-origin";
 import type { Lead } from "@/types/lead";
 
 type UnknownRecord = Record<string, unknown>;
+const CRM_DATA_MAPPING_VERSION = "2";
 
 function asRecord(value: unknown): UnknownRecord {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -65,7 +66,8 @@ function customFieldValue(input: unknown, aliases: string[]) {
     return aliasKeys.some(
       (alias) =>
         normalized === alias ||
-        normalized === `cf ${alias}`,
+        normalized === `cf ${alias}` ||
+        normalized.startsWith(`${alias} `),
     );
   };
 
@@ -83,12 +85,22 @@ function customFieldValue(input: unknown, aliases: string[]) {
     }
 
     const record = value as UnknownRecord;
-    const fieldIdentifier = scalarValue(
-      record.api_identifier ?? record.identifier ?? record.field_name ?? record.name ?? record.label,
-    );
-    if (fieldIdentifier && isMatch(fieldIdentifier)) {
-      const direct = scalarValue(record.value ?? record.content ?? record.answer ?? record.data);
-      if (direct) return direct;
+    const fieldDefinitions = [
+      record,
+      asRecord(record.field),
+      asRecord(record.definition),
+      asRecord(record.custom_field),
+    ];
+    for (const field of fieldDefinitions) {
+      const fieldIdentifier = scalarValue(
+        field.api_identifier ?? field.identifier ?? field.field_name ?? field.name ?? field.label,
+      );
+      if (fieldIdentifier && isMatch(fieldIdentifier)) {
+        const direct = scalarValue(
+          record.value ?? record.field_value ?? record.content ?? record.answer ?? record.data ?? record.values,
+        );
+        if (direct) return direct;
+      }
     }
 
     for (const [key, nested] of Object.entries(record)) {
@@ -336,6 +348,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
         ? {
             rdDetailsEnrichedAt: stringValue(root.__rdDetailsEnrichedAt),
             rdCrmDataCheckedAt: stringValue(root.__rdDetailsEnrichedAt),
+            rdCrmDataMappingVersion: CRM_DATA_MAPPING_VERSION,
           }
         : {}),
       ...associatedContactData(contact, root),
