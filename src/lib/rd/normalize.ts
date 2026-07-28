@@ -334,7 +334,10 @@ export function normalizeRdContact(input: unknown): Lead | null {
     updatedAt: new Date().toISOString(),
     additionalData: {
       ...(stringValue(root.__rdDetailsEnrichedAt)
-        ? { rdDetailsEnrichedAt: stringValue(root.__rdDetailsEnrichedAt) }
+        ? {
+            rdDetailsEnrichedAt: stringValue(root.__rdDetailsEnrichedAt),
+            rdCrmDataCheckedAt: stringValue(root.__rdDetailsEnrichedAt),
+          }
         : {}),
       ...associatedContactData(contact, root),
       ...emailWarning(contact, root),
