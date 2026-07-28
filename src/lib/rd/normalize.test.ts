@@ -44,7 +44,7 @@ describe("RD contact normalization", () => {
       name: "Ezatta",
       email: "comercial@ezattaequipamentos.com.br",
       cf_valor_total_da_oportunidade_no_crm: "7500.0",
-      cf_etapa_do_funil_de_vendas_no_crm: "Negocia\u00e7\u00e3o",
+      cf_etapa_do_funil_de_vendas_no_crm_ultima_atualizacao: "Negocia\u00e7\u00e3o",
       cf_funil_de_vendas_no_crm: "Funil de Vendas",
       cf_qualificacao_da_oportunidade_no_crm: "1",
       cf_nome_do_responsavel_pela_oportunidade_no_crm: "Agatha Silveira",

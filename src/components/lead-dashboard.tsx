@@ -133,7 +133,7 @@ function initials(name: string) {
 function shouldRefreshRdDetails(lead: Lead) {
   // Contatos enriquecidos antes do mapeamento comercial precisam de uma
   // consulta Ãºnica para que os campos de oportunidade tambÃ©m sejam gravados.
-  if (lead.additionalData?.rdCrmDataMappingVersion !== "2") return true;
+  if (lead.additionalData?.rdCrmDataMappingVersion !== "3") return true;
   const lastEnrichedAt = lead.additionalData?.rdDetailsEnrichedAt;
   if (!lastEnrichedAt) return true;
   const timestamp = Date.parse(lastEnrichedAt);

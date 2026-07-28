@@ -3,7 +3,7 @@ import { normalizeLeadOrigin } from "@/lib/lead-origin";
 import type { Lead } from "@/types/lead";
 
 type UnknownRecord = Record<string, unknown>;
-const CRM_DATA_MAPPING_VERSION = "2";
+const CRM_DATA_MAPPING_VERSION = "3";
 
 function asRecord(value: unknown): UnknownRecord {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -67,6 +67,7 @@ function customFieldValue(input: unknown, aliases: string[]) {
       (alias) =>
         normalized === alias ||
         normalized === `cf ${alias}` ||
+        normalized.startsWith(`cf ${alias} `) ||
         normalized.startsWith(`${alias} `),
     );
   };
