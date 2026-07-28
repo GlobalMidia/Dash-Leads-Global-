@@ -89,4 +89,28 @@ describe("RD contact normalization", () => {
       rdCrmOwner: "Mabel Oliveira",
     });
   });
+
+  it("maps the CRM plug fields returned by this RD account", () => {
+    const lead = normalizeRdContact({
+      uuid: "rd-5",
+      name: "Izanor Contabilidade",
+      email: "leticia@izanorcontabilidade.com.br",
+      cf_plug_opportunity_score: "1",
+      cf_plug_funnel_stage: "Contato Realizado",
+      cf_plug_opportunity_value: "0.0",
+      cf_plug_contact_owner: "Mabel Oliveira",
+      cf_plug_deal_pipeline: "Funil de Vendas",
+    });
+
+    expect(lead).toMatchObject({
+      status: "attended",
+      additionalData: {
+        rdCrmQualification: "1",
+        rdCrmSalesStage: "Contato Realizado",
+        rdOpportunityValue: "0.0",
+        rdCrmOwner: "Mabel Oliveira",
+        rdCrmSalesFunnel: "Funil de Vendas",
+      },
+    });
+  });
 });

@@ -138,26 +138,6 @@ async function rdGet(url: string) {
   };
 }
 
-function rdCommercialFieldPaths(input: unknown) {
-  const matches: string[] = [];
-  const visited = new WeakSet<object>();
-  const relevantKey = /(custom|cf_|crm|oportun|funil|respons|qualific|valor|stage|deal)/i;
-
-  const visit = (value: unknown, path = "", depth = 0): void => {
-    if (depth > 6 || !value || typeof value !== "object" || visited.has(value)) return;
-    visited.add(value);
-
-    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-      const nestedPath = path ? `${path}.${key}` : key;
-      if (relevantKey.test(key) && matches.length < 40) matches.push(nestedPath);
-      visit(nested, nestedPath, depth + 1);
-    }
-  };
-
-  visit(input);
-  return matches;
-}
-
 type RdWebhookSubscription = {
   uuid?: string;
   event_type?: string;
@@ -406,13 +386,6 @@ export async function loadRdContactDetails(rdUuid: string): Promise<Lead | null>
     `${RD_API_BASE}/platform/contacts/${encodeURIComponent(rdUuid)}`,
   );
   if (!result.payload || typeof result.payload !== "object") return null;
-  // Apenas a estrutura Ã© registrada para depuraÃ§Ã£o: nÃ£o inclui valores,
-  // e-mails, telefones ou qualquer credencial do contato.
-  console.info("[rd-details] esquema comercial recebido", {
-    rdUuid,
-    topLevelKeys: Object.keys(result.payload as Record<string, unknown>).slice(0, 80),
-    commercialFieldPaths: rdCommercialFieldPaths(result.payload),
-  });
   return normalizeRdContact({
     ...(result.payload as Record<string, unknown>),
     __rdDetailsEnrichedAt: new Date().toISOString(),

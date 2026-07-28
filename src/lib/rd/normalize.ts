@@ -3,7 +3,7 @@ import { normalizeLeadOrigin } from "@/lib/lead-origin";
 import type { Lead } from "@/types/lead";
 
 type UnknownRecord = Record<string, unknown>;
-const CRM_DATA_MAPPING_VERSION = "3";
+const CRM_DATA_MAPPING_VERSION = "4";
 
 function asRecord(value: unknown): UnknownRecord {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -125,18 +125,25 @@ function commercialCrmData(input: unknown) {
     "valor total da oportunidade no crm",
     "valor da oportunidade no crm",
     "valor total da oportunidade",
+    "plug opportunity value",
   ]);
   const salesStage = customFieldValue(input, [
     "etapa do funil de vendas no crm",
     "etapa do funil no crm",
+    "plug funnel stage",
   ]);
-  const salesFunnel = customFieldValue(input, ["funil de vendas no crm"]);
+  const salesFunnel = customFieldValue(input, [
+    "funil de vendas no crm",
+    "plug deal pipeline",
+  ]);
   const opportunityQualification = customFieldValue(input, [
     "qualificacao da oportunidade no crm",
+    "plug opportunity score",
   ]);
   const opportunityOwner = customFieldValue(input, [
     "nome do responsavel pela oportunidade no crm",
     "responsavel pela oportunidade no crm",
+    "plug contact owner",
   ]);
 
   return {
@@ -306,7 +313,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
               stageText.includes(term),
             )
           ? "disqualified"
-          : ["attended", "atendido", "contacted", "contatado"].some((term) =>
+          : ["attended", "atendido", "contacted", "contatado", "contato realizado"].some((term) =>
                 stageText.includes(term),
               )
             ? "attended"
