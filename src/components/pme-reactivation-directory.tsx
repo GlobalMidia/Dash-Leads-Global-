@@ -1,158 +1,157 @@
 "use client";
 
 import {
-  ArrowRight,
-  BriefcaseBusiness,
   Building2,
   FileSpreadsheet,
   HeartPulse,
   LayoutDashboard,
-  ShieldCheck,
+  Search,
+  Upload,
+  Users,
+  X,
 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
+import { parsePmeWorkbook, type PmeWorkbookPreview } from "@/lib/pme-workbook";
+import type { PmeDirectoryData } from "@/types/pme";
 
 type PmeReactivationDirectoryProps = {
   mode: "demo" | "live";
-  user: {
-    name: string;
-    email: string;
-    initials: string;
-  };
+  user: { name: string; email: string; initials: string };
+  initialDirectory: PmeDirectoryData;
 };
 
-export function PmeReactivationDirectory({
-  mode,
-  user,
-}: PmeReactivationDirectoryProps) {
+function formatDate(value: string | null) {
+  if (!value) return "Sem data registrada";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
+    .format(new Date(value))
+    .replace(".", "");
+}
+
+function formatCurrency(value: number | null) {
+  return value === null ? "—" : new Intl.NumberFormat("pt-BR", {
+    style: "currency", currency: "BRL", maximumFractionDigits: 0,
+  }).format(value);
+}
+
+async function hashFile(buffer: ArrayBuffer) {
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeReactivationDirectoryProps) {
   const { preferences, resolvedTheme } = useProfilePreferences(user.email);
-  const goToDashboard = () => window.location.assign("/");
-  const goToHealth = () => window.location.assign("/health");
-  const goToPmeTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [directory, setDirectory] = useState(initialDirectory);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [preview, setPreview] = useState<PmeWorkbookPreview | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [fileHash, setFileHash] = useState("");
+  const [notice, setNotice] = useState("");
+  const [importing, setImporting] = useState(false);
+  const go = (path: string) => window.location.assign(path);
+
+  const categories = useMemo(
+    () => [...new Set(directory.companies.flatMap((company) => company.categories))].sort(),
+    [directory.companies],
+  );
+  const visibleCompanies = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase("pt-BR");
+    return directory.companies.filter((company) => {
+      const searchable = [company.companyName, company.contacts, company.phones, company.latestStatus, company.notes].join(" ").toLocaleLowerCase("pt-BR");
+      return (!term || searchable.includes(term)) && (category === "all" || company.categories.includes(category));
+    });
+  }, [directory.companies, query, category]);
+
+  async function chooseFile(file?: File) {
+    if (!file) return;
+    if (!file.name.toLocaleLowerCase("pt-BR").endsWith(".xlsx")) {
+      setNotice("Selecione uma planilha no formato XLSX.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice("A planilha deve ter no máximo 5 MB.");
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parsePmeWorkbook(buffer);
+      if (!parsed.records.length) throw new Error("Nenhuma empresa reconhecível foi encontrada na planilha.");
+      setPreview(parsed);
+      setFileName(file.name);
+      setFileHash(await hashFile(buffer));
+      setNotice("");
+    } catch (error) {
+      setPreview(null);
+      setNotice(error instanceof Error ? error.message : "Não foi possível ler a planilha.");
+    }
+  }
+
+  async function importPreview() {
+    if (!preview || !fileName || !fileHash) return;
+    if (mode !== "live") { setNotice("A área demonstrativa não grava a base PME."); return; }
+    setImporting(true);
+    try {
+      const response = await fetch("/api/pme/imports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName, fileHash, ...preview }),
+      });
+      const result = await response.json() as { imported?: number; alreadyImported?: boolean; error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível importar a base PME.");
+      setPreview(null);
+      setNotice(result.alreadyImported ? "Esta mesma planilha já está no diretório PME." : `${result.imported ?? 0} registros foram importados. Atualizando o diretório...`);
+      window.setTimeout(() => window.location.reload(), 650);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível importar a base PME.");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
-    <div
-      className="dashboard-shell pme-shell"
-      data-contrast={preferences.highContrast ? "high" : "standard"}
-      data-motion={preferences.reducedMotion ? "reduced" : "full"}
-      data-text-size={preferences.textSize}
-      data-theme={resolvedTheme}
-    >
+    <div className="dashboard-shell pme-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
       <header className="topbar">
-        <button
-          className="brand-lockup"
-          aria-label="Voltar ao painel de leads"
-          onClick={goToDashboard}
-          type="button"
-        >
-          <span className="brand-mark">G</span>
-          <span className="brand-copy">
-            <strong>Global Mídia</strong>
-            <small>LEADS</small>
-          </span>
-        </button>
-        <div className="topbar-actions">
-          <span className={`mode-pill ${mode}`}>
-            <span className="mode-dot" />
-            {mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}
-          </span>
-          <div className="user-badge" aria-label={`Perfil de ${user.name}`}>
-            <span>{user.initials}</span>
-            <div>
-              <strong>{user.name}</strong>
-              <small>{user.email}</small>
-            </div>
-          </div>
-        </div>
+        <button className="brand-lockup" aria-label="Voltar ao painel de leads" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button>
+        <div className="topbar-actions"><span className={`mode-pill ${mode}`}><span className="mode-dot" />{mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}</span><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div>
       </header>
-
       <aside className="side-rail" aria-label="Navegação principal">
-        <button
-          aria-label="Voltar ao dashboard"
-          className="rail-button"
-          onClick={goToDashboard}
-          title="Painel de leads"
-          type="button"
-        >
-          <LayoutDashboard size={19} />
-        </button>
-        <button
-          aria-label="PME e reativação"
-          className="rail-button active"
-          onClick={goToPmeTop}
-          title="PME e reativação"
-          type="button"
-        >
-          <BriefcaseBusiness size={19} />
-        </button>
-        <button
-          aria-label="Saúde das contas"
-          className="rail-button"
-          onClick={goToHealth}
-          title="Saúde das contas"
-          type="button"
-        >
-          <HeartPulse size={19} />
-        </button>
+        <button aria-label="Voltar ao dashboard" className="rail-button" onClick={() => go("/")} title="Painel de leads" type="button"><LayoutDashboard size={19} /></button>
+        <button aria-label="PME e reativação" className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="PME e reativação" type="button"><Building2 size={19} /></button>
+        <button aria-label="Saúde das contas" className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button>
       </aside>
 
       <main className="dashboard-main pme-directory">
         <section className="pme-hero">
-          <div>
-            <p className="eyebrow">BASE COMERCIAL SEPARADA</p>
-            <h1>PME / Reativação</h1>
-            <p className="hero-subtitle">
-              Clientes que já participaram do PME e podem ser trabalhados pela
-              agência novamente.
-            </p>
-          </div>
-          <span className="pme-state">
-            <FileSpreadsheet size={17} />
-            Aguardando planilha
-          </span>
+          <div><p className="eyebrow">BASE COMERCIAL SEPARADA</p><h1>PME / Reativação</h1><p className="hero-subtitle">Empresas que já participaram do PME e podem ser trabalhadas novamente pela agência.</p></div>
+          <button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />Importar planilha</button>
+          <input accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(event) => void chooseFile(event.target.files?.[0])} ref={inputRef} type="file" />
         </section>
 
-        <section className="pme-empty-card" aria-labelledby="pme-ready-title">
-          <div className="pme-empty-icon">
-            <BriefcaseBusiness size={30} />
-          </div>
-          <div>
-            <h2 id="pme-ready-title">Diretório pronto para configuração</h2>
-            <p>
-              Quando a planilha for enviada, esta área receberá sua própria
-              importação, campos e acompanhamento — sem misturar os registros
-              de PME com os leads sincronizados do RD Station.
-            </p>
-          </div>
+        <section className="pme-summary" aria-label="Resumo da base PME">
+          <article><Building2 size={20}/><div><small>EMPRESAS ÚNICAS</small><strong>{directory.companies.length}</strong></div></article>
+          <article><FileSpreadsheet size={20}/><div><small>REGISTROS PRESERVADOS</small><strong>{directory.importedRecords}</strong></div></article>
+          <article><Users size={20}/><div><small>ÚLTIMA IMPORTAÇÃO</small><strong>{directory.latestImportAt ? formatDate(directory.latestImportAt) : "—"}</strong></div></article>
         </section>
 
-        <section className="pme-guidelines" aria-label="Como a base será organizada">
-          <article className="pme-guideline">
-            <span className="pme-guideline-icon"><Building2 size={19} /></span>
-            <div>
-              <h2>Base independente</h2>
-              <p>Os clientes de PME ficam em um diretório próprio e não entram nas estatísticas do RD.</p>
-            </div>
-          </article>
-          <article className="pme-guideline">
-            <span className="pme-guideline-icon"><FileSpreadsheet size={19} /></span>
-            <div>
-              <h2>Importação guiada</h2>
-              <p>Vamos ajustar os campos à estrutura real da planilha antes de importar qualquer dado.</p>
-            </div>
-          </article>
-          <article className="pme-guideline">
-            <span className="pme-guideline-icon"><ShieldCheck size={19} /></span>
-            <div>
-              <h2>Histórico preservado</h2>
-              <p>O acompanhamento de reativação poderá evoluir sem alterar a origem dos registros existentes.</p>
-            </div>
-          </article>
-        </section>
+        {directory.companies.length > 0 ? <>
+          <section className="pme-filters">
+            <label><Search size={16}/><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar empresa, contato, telefone ou situação" value={query}/></label>
+            <select aria-label="Filtrar por categoria" onChange={(event) => setCategory(event.target.value)} value={category}><option value="all">Todas as categorias</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+            <span>{visibleCompanies.length} empresa{visibleCompanies.length === 1 ? "" : "s"}</span>
+          </section>
+          <section className="pme-company-list" aria-label="Empresas PME">
+            {visibleCompanies.map((company) => <article key={company.normalizedCompany}>
+              <header><div><span><Building2 size={17}/></span><div><h2>{company.companyName}</h2><p>{company.contacts || "Contato não informado"}{company.phones ? ` · ${company.phones}` : ""}</p></div></div><b>{company.recordCount} registro{company.recordCount === 1 ? "" : "s"}</b></header>
+              <dl><div><dt>Situação mais recente</dt><dd>{company.latestStatus || "Sem situação registrada"}</dd></div><div><dt>Última atividade</dt><dd>{formatDate(company.latestActivityAt)}</dd></div><div><dt>Valor histórico</dt><dd>{formatCurrency(company.historicValue)}</dd></div><div><dt>Origem</dt><dd>{company.categories.join(" · ")}</dd></div></dl>
+              {(company.notes || company.website) && <footer>{company.notes && <p>{company.notes}</p>}{company.website && <a href={company.website} rel="noreferrer" target="_blank">Abrir perfil da empresa</a>}</footer>}
+            </article>)}
+          </section>
+        </> : <section className="pme-empty-card" aria-labelledby="pme-ready-title"><div className="pme-empty-icon"><FileSpreadsheet size={30} /></div><div><h2 id="pme-ready-title">Importe a base de reativação</h2><p>Selecione a planilha XLSX recebida. O diretório lê as abas, preserva o histórico e mantém PME separado dos leads do RD Station.</p></div><button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={16}/>Selecionar planilha</button></section>}
 
-        <div className="pme-next-step">
-          <span>Próximo passo: analisar a planilha de PME e mapear os campos que realmente vierem nela.</span>
-          <span aria-hidden="true"><ArrowRight size={17} /></span>
-        </div>
+        {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros reconhecidos</span><span><strong>{preview.ignoredRows}</strong> linhas ignoradas</span><span><strong>{preview.sourceSheets.length}</strong> abas lidas</span></div><p>As linhas ficam preservadas com a aba de origem; na tela, empresas repetidas serão agrupadas para facilitar o retrabalho.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
+        {notice && <div className="toast-notice">{notice}<button onClick={() => setNotice("")} type="button"><X size={15}/></button></div>}
       </main>
     </div>
   );
