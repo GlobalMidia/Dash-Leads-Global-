@@ -608,9 +608,12 @@ export function LeadDashboard({
         const responseText = await response.text();
         let data: {
           imported?: number;
+          page?: number;
           hasMore?: boolean;
           processed?: number;
           total?: number | null;
+          detailsCompleted?: number;
+          detailsTotal?: number;
           error?: string;
         } = {};
         try {
@@ -634,9 +637,14 @@ export function LeadDashboard({
           setLeads(leadsData.leads);
           batchesSinceRefresh = 0;
         }
-        const progress = data.total
-          ? `${data.processed ?? 0} de ${data.total}`
-          : `${data.processed ?? 0}`;
+        const isEnrichingPage =
+          Boolean(data.detailsTotal) &&
+          (data.detailsCompleted ?? 0) < (data.detailsTotal ?? 0);
+        const progress = isEnrichingPage
+          ? `Página ${data.page ?? 1}: ${data.detailsCompleted ?? 0} de ${data.detailsTotal} contatos detalhados`
+          : data.total
+            ? `${data.processed ?? 0} de ${data.total}`
+            : `${data.processed ?? 0}`;
         setNotice(
           hasMore
             ? `RD Station: ${progress} processados. Próximo lote em 1 segundo.`

@@ -28,6 +28,8 @@ export async function POST() {
       page: batch.page,
       processed: batch.processed,
       total: batch.total,
+      detailsCompleted: batch.detailsCompleted,
+      detailsTotal: batch.detailsTotal,
     });
   } catch (error) {
     console.error("Falha na sincronização com o RD Station:", error);

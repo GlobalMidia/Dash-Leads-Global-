@@ -244,7 +244,11 @@ async function enrichContacts(sourceContacts: unknown[], enrichedUuids: Set<stri
     const uuid = contactUuid(contact);
     return uuid && !enrichedUuids.has(uuid) && !newlyEnrichedUuids.has(uuid);
   }).length;
-  return { contacts, remainingDetails };
+  return {
+    contacts,
+    remainingDetails,
+    completedDetails: sourceContacts.length - remainingDetails,
+  };
 }
 
 function extractSegmentations(payload: unknown): RdSegmentation[] {
@@ -287,6 +291,8 @@ export type RdSyncBatch = {
   page: number;
   processed: number;
   total: number | null;
+  detailsCompleted: number;
+  detailsTotal: number;
 };
 
 type SyncCursor = {
@@ -362,7 +368,15 @@ export async function importNextRdBatch(): Promise<RdSyncBatch> {
         updated_at = NOW(),
         completed_at = EXCLUDED.completed_at
     `;
-    return { contacts: [...byUuid.values()], hasMore, page, processed, total };
+    return {
+      contacts: [...byUuid.values()],
+      hasMore,
+      page,
+      processed,
+      total,
+      detailsCompleted: detailResult.completedDetails,
+      detailsTotal: sourceContacts.length,
+    };
   } catch (error) {
     await sql`
       INSERT INTO rd_sync_cursor (
