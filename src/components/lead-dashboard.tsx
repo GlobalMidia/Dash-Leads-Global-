@@ -456,7 +456,6 @@ export function LeadDashboard({
           ? error.message
           : "Não foi possível consultar os detalhes no RD Station.",
       );
-      setRdWebhookActive(true);
     } finally {
       setEnrichingLeadId((current) => (current === id ? null : current));
     }
