@@ -240,8 +240,8 @@ export async function importPmeRecords(input: PmeImportInput, actor?: { userId?:
         ${actor?.userId ?? null}::uuid, ${actor?.email ?? null}, 'pme.imported', 'pme_import',
         ${batchId}, jsonb_build_object(
           'title', 'Base PME importada',
-          'description', ${`${prepared.length} registros foram adicionados ao diretório PME.`},
-          'actorName', ${actor?.name ?? actor?.email ?? 'Sistema'}
+          'description', ${`${prepared.length} registros foram adicionados ao diretório PME.`}::text,
+          'actorName', ${actor?.name ?? actor?.email ?? 'Sistema'}::text
         )
       )
     `,

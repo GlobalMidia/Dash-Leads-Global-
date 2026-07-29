@@ -48,6 +48,10 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result, { status: result.alreadyImported ? 200 : 201 });
   } catch (error) {
+    console.error("[api/pme/imports] import failed", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Não foi possível importar a base PME." },
       { status: 503 },
