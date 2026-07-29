@@ -24,6 +24,8 @@ type PmeReactivationDirectoryProps = {
   initialDirectory: PmeDirectoryData;
 };
 
+const IMPORT_BATCH_PAGE_SIZE = 50;
+
 function formatDate(value: string | null) {
   if (!value) return "Sem data registrada";
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
@@ -58,6 +60,8 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
   const [loadingCompany, setLoadingCompany] = useState<string | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<PmeImportBatchDetails | null>(null);
   const [loadingBatch, setLoadingBatch] = useState<string | null>(null);
+  const [batchRecordQuery, setBatchRecordQuery] = useState("");
+  const [batchRecordPage, setBatchRecordPage] = useState(1);
   const go = (path: string) => window.location.assign(path);
 
   const categories = useMemo(
@@ -76,6 +80,26 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
     return directory.importBatches.filter((batch) => [batch.fileName, batch.importedByName, batch.importedByEmail]
       .join(" ").toLocaleLowerCase("pt-BR").includes(term));
   }, [batchQuery, directory.importBatches]);
+  const filteredBatchRecords = useMemo(() => {
+    if (!selectedBatch) return [];
+    const term = batchRecordQuery.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return selectedBatch.records;
+    return selectedBatch.records.filter((record) => [
+      record.companyName,
+      record.contactName,
+      record.phone,
+      record.sourceSheet,
+      record.category,
+      record.historicStatus,
+    ].join(" ").toLocaleLowerCase("pt-BR").includes(term));
+  }, [batchRecordQuery, selectedBatch]);
+  const batchRecordPageCount = Math.max(1, Math.ceil(filteredBatchRecords.length / IMPORT_BATCH_PAGE_SIZE));
+  const currentBatchRecordPage = Math.min(batchRecordPage, batchRecordPageCount);
+  const batchRecordStart = (currentBatchRecordPage - 1) * IMPORT_BATCH_PAGE_SIZE;
+  const visibleBatchRecords = filteredBatchRecords.slice(
+    batchRecordStart,
+    batchRecordStart + IMPORT_BATCH_PAGE_SIZE,
+  );
 
   async function chooseFile(file?: File) {
     if (!file) return;
@@ -153,6 +177,8 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
       const response = await fetch(`/api/pme/imports/${encodeURIComponent(batch.id)}`);
       const result = (await response.json()) as { batch?: PmeImportBatchDetails; error?: string };
       if (!response.ok || !result.batch) throw new Error(result.error ?? "Não foi possível abrir a planilha.");
+      setBatchRecordQuery("");
+      setBatchRecordPage(1);
       setSelectedBatch(result.batch);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Não foi possível abrir a planilha.");
@@ -216,7 +242,76 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
 
         {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros preservados</span><span><strong>{preview.sourceSheets.length}</strong> abas lidas</span><span><strong>100%</strong> linhas com conteúdo</span></div><p>Linhas vazias usadas somente pela formatação da planilha não entram na contagem. Todo registro com conteúdo fica preservado com a aba e a linha de origem; empresas repetidas serão agrupadas apenas na visualização.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
         {selectedCompany && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-records-modal" role="dialog"><header><div><p className="eyebrow">HISTÓRICO PME</p><h2>{selectedCompany.companyName}</h2><p>{selectedCompany.contacts || "Contato não informado"}{selectedCompany.phones ? ` · ${selectedCompany.phones}` : ""}</p></div><button aria-label="Fechar histórico" onClick={() => setSelectedCompany(null)} type="button"><X size={18}/></button></header><div className="pme-records-body">{selectedCompany.website && <a className="pme-profile-link" href={selectedCompany.website} rel="noreferrer" target="_blank"><ExternalLink size={15}/>Abrir perfil da empresa</a>}<p className="pme-records-intro">Cada item abaixo é uma linha original da planilha, mantida com a aba e a posição de onde veio.</p>{selectedCompany.records.map((record) => <article key={record.id} className="pme-source-record"><header><div><strong>{record.sourceSheet}</strong><span>Linha {record.sourceRow} · {record.category}</span></div><span>{formatDate(record.contactAt ?? record.displayedAt ?? record.recordedAt)}</span></header><dl><div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div><div><dt>Situação</dt><dd>{record.historicStatus || "Sem situação registrada"}</dd></div><div><dt>Valor</dt><dd>{formatCurrency(record.historicValue)}</dd></div></dl>{record.notes && <p className="pme-source-notes">{record.notes}</p>}</article>)}</div><footer><button className="tutorial-button" onClick={() => setSelectedCompany(null)} type="button">Fechar</button></footer></section></div>}
-        {selectedBatch && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-records-modal" role="dialog"><header><div><p className="eyebrow">PLANILHA IMPORTADA</p><h2>{selectedBatch.fileName}</h2><p>Importada em {formatDate(selectedBatch.createdAt)} por {selectedBatch.importedByName || selectedBatch.importedByEmail || "Usuário não identificado"}</p></div><button aria-label="Fechar planilha" onClick={() => setSelectedBatch(null)} type="button"><X size={18}/></button></header><div className="pme-records-body"><p className="pme-records-intro">{selectedBatch.importedRows} registros preservados nas abas: {selectedBatch.sourceSheets.join(" · ") || "não identificadas"}.</p>{selectedBatch.records.map((record) => <article key={record.id} className="pme-source-record"><header><div><strong>{record.companyName}</strong><span>{record.sourceSheet} · Linha {record.sourceRow} · {record.category}</span></div><span>{record.historicStatus || "Sem situação"}</span></header><dl><div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div><div><dt>Aba</dt><dd>{record.sourceSheet}</dd></div><div><dt>Linha</dt><dd>{record.sourceRow}</dd></div></dl></article>)}</div><footer><button className="tutorial-button" onClick={() => setSelectedBatch(null)} type="button">Fechar</button></footer></section></div>}
+        {selectedBatch && <div className="pme-import-backdrop" role="presentation">
+          <section aria-modal="true" className="pme-records-modal" role="dialog">
+            <header>
+              <div>
+                <p className="eyebrow">PLANILHA IMPORTADA</p>
+                <h2>{selectedBatch.fileName}</h2>
+                <p>Importada em {formatDate(selectedBatch.createdAt)} por {selectedBatch.importedByName || selectedBatch.importedByEmail || "Usuário não identificado"}</p>
+              </div>
+              <button aria-label="Fechar planilha" onClick={() => setSelectedBatch(null)} type="button"><X size={18}/></button>
+            </header>
+            <div className="pme-records-body">
+              <p className="pme-records-intro">{selectedBatch.importedRows} registros preservados nas abas: {selectedBatch.sourceSheets.join(" · ") || "não identificadas"}.</p>
+              <div className="pme-records-toolbar">
+                <label>
+                  <Search size={15}/>
+                  <input
+                    aria-label="Pesquisar registros da planilha"
+                    onChange={(event) => {
+                      setBatchRecordQuery(event.target.value);
+                      setBatchRecordPage(1);
+                    }}
+                    placeholder="Pesquisar empresa, contato, telefone ou aba"
+                    value={batchRecordQuery}
+                  />
+                </label>
+                <span>{filteredBatchRecords.length} registro{filteredBatchRecords.length === 1 ? "" : "s"}</span>
+              </div>
+              {visibleBatchRecords.length ? visibleBatchRecords.map((record) => <article key={record.id} className="pme-source-record">
+                <header>
+                  <div>
+                    <strong>{record.companyName}</strong>
+                    <span>{record.sourceSheet} · Linha {record.sourceRow} · {record.category}</span>
+                  </div>
+                  <span>{record.historicStatus || "Sem situação"}</span>
+                </header>
+                <dl>
+                  <div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div>
+                  <div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div>
+                  <div><dt>Aba</dt><dd>{record.sourceSheet}</dd></div>
+                  <div><dt>Linha</dt><dd>{record.sourceRow}</dd></div>
+                </dl>
+              </article>) : <p className="pme-records-empty">Nenhum registro corresponde à pesquisa.</p>}
+            </div>
+            <footer className="pme-records-footer">
+              <span>
+                {filteredBatchRecords.length
+                  ? `Exibindo ${batchRecordStart + 1}–${Math.min(batchRecordStart + IMPORT_BATCH_PAGE_SIZE, filteredBatchRecords.length)} de ${filteredBatchRecords.length}`
+                  : "Nenhum registro"}
+              </span>
+              <div className="pme-records-pagination">
+                <button
+                  disabled={currentBatchRecordPage === 1}
+                  onClick={() => setBatchRecordPage((page) => Math.max(1, page - 1))}
+                  type="button"
+                >
+                  Anterior
+                </button>
+                <b>{currentBatchRecordPage} / {batchRecordPageCount}</b>
+                <button
+                  disabled={currentBatchRecordPage === batchRecordPageCount}
+                  onClick={() => setBatchRecordPage((page) => Math.min(batchRecordPageCount, page + 1))}
+                  type="button"
+                >
+                  Próxima
+                </button>
+              </div>
+              <button className="tutorial-button" onClick={() => setSelectedBatch(null)} type="button">Fechar</button>
+            </footer>
+          </section>
+        </div>}
         {notice && <div className="toast-notice">{notice}<button onClick={() => setNotice("")} type="button"><X size={15}/></button></div>}
       </main>
     </div>

@@ -467,9 +467,14 @@ select:disabled {
 .pme-records-modal h2 { margin: 5px 0 3px; color: #26334b; font-size: 19px; letter-spacing: -.025em; }
 .pme-records-modal > header p { margin: 0; color: #718096; font-size: 12px; }
 .pme-records-modal > header > button { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid #dce5f2; border-radius: 10px; color: #718096; background: #fff; }
-.pme-records-body { display: grid; gap: 11px; overflow: auto; padding: 17px 22px; }
+.pme-records-body { display: grid; min-height: 0; align-content: start; grid-auto-rows: max-content; gap: 11px; overflow: auto; padding: 17px 22px; }
 .pme-profile-link { display: inline-flex; width: fit-content; align-items: center; gap: 7px; color: #2f7df4; font-size: 12px; font-weight: 800; text-decoration: none; }
 .pme-records-intro { margin: 0 0 2px; color: #718096; font-size: 12px; line-height: 1.55; }
+.pme-records-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pme-records-toolbar label { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; border: 1px solid #dce5f2; border-radius: 10px; color: #718096; background: #fff; padding: 0 11px; }
+.pme-records-toolbar input { width: 100%; min-width: 0; border: 0; outline: 0; color: #33425c; background: transparent; padding: 10px 0; font: inherit; font-size: 11px; }
+.pme-records-toolbar > span { flex: 0 0 auto; color: #718096; font-size: 10px; font-weight: 800; }
+.pme-records-empty { margin: 8px 0; color: #718096; font-size: 12px; text-align: center; }
 .pme-source-record { border: 1px solid #e0e8f4; border-radius: 13px; background: #fbfcff; overflow: hidden; }
 .pme-source-record > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e6edf7; padding: 12px 14px; }
 .pme-source-record header strong { display: block; color: #31415b; font-size: 12px; }
@@ -481,7 +486,12 @@ select:disabled {
 .pme-source-record dt { color: #8a98ad; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .pme-source-record dd { overflow: hidden; margin: 4px 0 0; color: #34435d; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .pme-source-notes { margin: 0; border-top: 1px solid #e6edf7; color: #687990; background: #fff; padding: 10px 14px; font-size: 11px; line-height: 1.5; }
-.pme-records-modal > footer { display: flex; justify-content: flex-end; border-top: 1px solid #e8eef7; padding: 14px 22px; }
+.pme-records-modal > footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; border-top: 1px solid #e8eef7; padding: 14px 22px; }
+.pme-records-footer > span { margin-right: auto; color: #718096; font-size: 10px; font-weight: 700; }
+.pme-records-pagination { display: flex; align-items: center; gap: 8px; }
+.pme-records-pagination button { border: 1px solid #dce5f2; border-radius: 9px; color: #4b5f7d; background: #fff; padding: 8px 10px; font: inherit; font-size: 10px; font-weight: 800; }
+.pme-records-pagination button:disabled { cursor: not-allowed; opacity: .45; }
+.pme-records-pagination b { min-width: 42px; color: #718096; font-size: 10px; text-align: center; }
 
 .health-center { padding-bottom: 56px; }
 .health-hero { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:24px; }
@@ -4072,6 +4082,9 @@ td {
 .dashboard-shell[data-theme="dark"] :is(.pme-records-modal h2, .pme-source-record header strong, .pme-source-record dd) { color: #f4f7fc; }
 .dashboard-shell[data-theme="dark"] :is(.pme-records-modal > header, .pme-records-modal > footer, .pme-source-record > header, .pme-source-record dl > div, .pme-source-notes) { border-color: #2a3a55; }
 .dashboard-shell[data-theme="dark"] .pme-source-notes { color: #aab9ce; background: #0d1829; }
+.dashboard-shell[data-theme="dark"] .pme-records-toolbar label,
+.dashboard-shell[data-theme="dark"] .pme-records-pagination button { border-color: #2a3a55; color: #d6e1f2; background: #15233a; }
+.dashboard-shell[data-theme="dark"] .pme-records-toolbar input { color: #f4f7fc; }
 
 .dashboard-shell[data-theme="dark"] :is(
     .details-header,
@@ -4516,7 +4529,10 @@ td {
   .pme-import-modal > footer { padding: 14px 17px; }
   .pme-records-modal > header { padding: 18px 17px 14px; }
   .pme-records-body { padding: 14px 17px; }
-  .pme-records-modal > footer { padding: 13px 17px; }
+  .pme-records-toolbar { align-items: stretch; flex-direction: column; }
+  .pme-records-modal > footer { flex-wrap: wrap; padding: 13px 17px; }
+  .pme-records-footer > span { width: 100%; margin-right: 0; text-align: center; }
+  .pme-records-pagination { margin-right: auto; }
   .pme-source-record dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pme-source-record dl > div:nth-child(2) { border-right: 0; }
   .pme-source-record dl > div:nth-child(-n + 2) { border-bottom: 1px solid #e6edf7; }
