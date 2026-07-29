@@ -39,7 +39,25 @@ export type ClientPendency = {
   createdAt: string;
 };
 
+export type ClientAccountAuditChange = {
+  field: string;
+  label: string;
+  before: string;
+  after: string;
+};
+
+export type ClientAccountAuditEvent = {
+  id: string;
+  action: string;
+  title: string;
+  actor: string;
+  actorEmail?: string;
+  changes: ClientAccountAuditChange[];
+  occurredAt: string;
+};
+
 export type ClientAccountDetails = ClientAccount & {
   reviews: ClientHealthReview[];
   pendencies: ClientPendency[];
+  auditEvents: ClientAccountAuditEvent[];
 };

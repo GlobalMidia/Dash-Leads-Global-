@@ -1,10 +1,15 @@
 import "server-only";
 
+import {
+  clientAccountAuditTitle,
+  getClientAccountAuditChanges,
+} from "@/lib/client-health-audit";
 import { getSql } from "@/server/db";
 import { isLiveMode } from "@/server/lead-repository";
 import type {
   AccountHealth,
   ClientAccount,
+  ClientAccountAuditEvent,
   ClientAccountDetails,
   ClientHealthReview,
   ClientPendency,
@@ -13,6 +18,13 @@ import type {
 } from "@/types/client-health";
 
 type Row = Record<string, unknown>;
+type AuditActor = { userId?: string; email?: string; name?: string };
+
+function asObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
 
 function mapAccount(row: Row): ClientAccount {
   return {
@@ -57,6 +69,22 @@ function mapPendency(row: Row): ClientPendency {
   };
 }
 
+function mapAuditEvent(row: Row): ClientAccountAuditEvent {
+  const metadata = asObject(row.metadata);
+  return {
+    id: String(row.id),
+    action: String(row.action),
+    title: clientAccountAuditTitle(String(row.action)),
+    actor: String(metadata?.actorName ?? row.actor_name ?? row.actor_email ?? "Sistema"),
+    actorEmail: row.actor_email ? String(row.actor_email) : undefined,
+    changes: getClientAccountAuditChanges(
+      asObject(row.before_data),
+      asObject(row.after_data),
+    ),
+    occurredAt: new Date(String(row.created_at)).toISOString(),
+  };
+}
+
 const accountSelect = `
   SELECT
     a.*,
@@ -80,21 +108,40 @@ export async function listClientAccounts(): Promise<ClientAccount[]> {
 
 export async function createClientAccount(
   input: Pick<ClientAccount, "name" | "cnpj" | "profileUrl" | "nucleus" | "accountHead" | "direction">,
-  actorId?: string,
+  actor: AuditActor = {},
 ) {
   if (!isLiveMode()) throw new Error("Configure o banco antes de cadastrar uma conta.");
   const rows = (await getSql()`
-    INSERT INTO client_accounts (name, cnpj, profile_url, nucleus, account_head, direction, created_by)
-    VALUES (${input.name}, ${input.cnpj}, ${input.profileUrl}, ${input.nucleus}, ${input.accountHead}, ${input.direction}, ${actorId ?? null}::uuid)
-    RETURNING *
+    WITH inserted AS (
+      INSERT INTO client_accounts (name, cnpj, profile_url, nucleus, account_head, direction, created_by)
+      VALUES (${input.name}, ${input.cnpj}, ${input.profileUrl}, ${input.nucleus}, ${input.accountHead}, ${input.direction}, ${actor.userId ?? null}::uuid)
+      RETURNING *
+    ),
+    logged AS (
+      INSERT INTO audit_log (
+        actor_user_id, actor_email, action, entity_type, entity_id,
+        before_data, after_data, metadata
+      )
+      SELECT
+        ${actor.userId ?? null}::uuid,
+        ${actor.email ?? null},
+        'client_account.created',
+        'client_account',
+        inserted.id::text,
+        NULL,
+        to_jsonb(inserted),
+        ${JSON.stringify({ actorName: actor.name ?? actor.email ?? "Sistema" })}::jsonb
+      FROM inserted
+    )
+    SELECT *, 0::int AS open_pendencies FROM inserted
   `) as Row[];
-  return mapAccount({ ...rows[0], open_pendencies: 0 });
+  return mapAccount(rows[0]);
 }
 
 export async function getClientAccountDetails(accountId: string): Promise<ClientAccountDetails | null> {
   if (!isLiveMode()) return null;
   const sql = getSql();
-  const [accounts, reviews, pendencies] = await Promise.all([
+  const [accounts, reviews, pendencies, auditEvents] = await Promise.all([
     sql.query(`${accountSelect} WHERE a.id = $1 LIMIT 1`, [accountId]) as Promise<Row[]>,
     sql.query(
       "SELECT * FROM client_health_reviews WHERE client_account_id = $1 ORDER BY review_week DESC, updated_at DESC LIMIT 52",
@@ -104,9 +151,23 @@ export async function getClientAccountDetails(accountId: string): Promise<Client
       "SELECT * FROM client_pendencies WHERE client_account_id = $1 ORDER BY completed_at NULLS FIRST, review_week DESC, created_at DESC LIMIT 200",
       [accountId],
     ) as Promise<Row[]>,
+    sql.query(
+      `SELECT a.*, u.name AS actor_name
+       FROM audit_log a
+       LEFT JOIN application_users u ON u.id = a.actor_user_id
+       WHERE a.entity_type = 'client_account' AND a.entity_id = $1
+       ORDER BY a.created_at DESC
+       LIMIT 100`,
+      [accountId],
+    ) as Promise<Row[]>,
   ]);
   const account = accounts[0];
-  return account ? { ...mapAccount(account), reviews: reviews.map(mapReview), pendencies: pendencies.map(mapPendency) } : null;
+  return account ? {
+    ...mapAccount(account),
+    reviews: reviews.map(mapReview),
+    pendencies: pendencies.map(mapPendency),
+    auditEvents: auditEvents.map(mapAuditEvent),
+  } : null;
 }
 
 export async function saveClientHealthReview(input: {
@@ -167,12 +228,51 @@ export async function setClientPendencyCompletion(input: { accountId: string; pe
   return rows[0] ? mapPendency(rows[0]) : null;
 }
 
-export async function setClientAccountActive(accountId: string, active: boolean) {
+export async function setClientAccountActive(
+  accountId: string,
+  active: boolean,
+  actor: AuditActor = {},
+) {
   if (!isLiveMode()) throw new Error("Configure o banco antes de atualizar uma conta.");
   const rows = (await getSql()`
-    UPDATE client_accounts SET active = ${active}, updated_at = NOW()
-    WHERE id = ${accountId}::uuid
-    RETURNING *, 0::int AS open_pendencies
+    WITH previous AS MATERIALIZED (
+      SELECT *
+      FROM client_accounts
+      WHERE id = ${accountId}::uuid
+      FOR UPDATE
+    ),
+    updated AS (
+      UPDATE client_accounts
+      SET active = ${active}, updated_at = NOW()
+      WHERE id = ${accountId}::uuid
+      RETURNING *
+    ),
+    logged AS (
+      INSERT INTO audit_log (
+        actor_user_id, actor_email, action, entity_type, entity_id,
+        before_data, after_data, metadata
+      )
+      SELECT
+        ${actor.userId ?? null}::uuid,
+        ${actor.email ?? null},
+        ${active ? "client_account.reactivated" : "client_account.ended"},
+        'client_account',
+        updated.id::text,
+        to_jsonb(previous),
+        to_jsonb(updated),
+        ${JSON.stringify({ actorName: actor.name ?? actor.email ?? "Sistema" })}::jsonb
+      FROM updated
+      JOIN previous ON previous.id = updated.id
+      WHERE previous.active IS DISTINCT FROM updated.active
+    )
+    SELECT
+      updated.*,
+      COALESCE((
+        SELECT count(*)
+        FROM client_pendencies p
+        WHERE p.client_account_id = updated.id AND p.completed_at IS NULL
+      ), 0) AS open_pendencies
+    FROM updated
   `) as Row[];
   return rows[0] ? mapAccount(rows[0]) : null;
 }
@@ -180,10 +280,17 @@ export async function setClientAccountActive(accountId: string, active: boolean)
 export async function updateClientAccountInformation(
   accountId: string,
   input: Pick<ClientAccount, "name" | "nucleus" | "accountHead" | "direction">,
+  actor: AuditActor = {},
 ) {
   if (!isLiveMode()) throw new Error("Configure o banco antes de atualizar uma conta.");
   const rows = (await getSql()`
-    WITH updated AS (
+    WITH previous AS MATERIALIZED (
+      SELECT *
+      FROM client_accounts
+      WHERE id = ${accountId}::uuid
+      FOR UPDATE
+    ),
+    updated AS (
       UPDATE client_accounts
       SET name = ${input.name},
         nucleus = ${input.nucleus},
@@ -192,6 +299,27 @@ export async function updateClientAccountInformation(
         updated_at = NOW()
       WHERE id = ${accountId}::uuid
       RETURNING *
+    ),
+    logged AS (
+      INSERT INTO audit_log (
+        actor_user_id, actor_email, action, entity_type, entity_id,
+        before_data, after_data, metadata
+      )
+      SELECT
+        ${actor.userId ?? null}::uuid,
+        ${actor.email ?? null},
+        'client_account.information_updated',
+        'client_account',
+        updated.id::text,
+        to_jsonb(previous),
+        to_jsonb(updated),
+        ${JSON.stringify({ actorName: actor.name ?? actor.email ?? "Sistema" })}::jsonb
+      FROM updated
+      JOIN previous ON previous.id = updated.id
+      WHERE previous.name IS DISTINCT FROM updated.name
+        OR previous.nucleus IS DISTINCT FROM updated.nucleus
+        OR previous.account_head IS DISTINCT FROM updated.account_head
+        OR previous.direction IS DISTINCT FROM updated.direction
     )
     SELECT
       updated.*,

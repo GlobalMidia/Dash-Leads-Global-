@@ -558,11 +558,12 @@ select:disabled {
 .health-detail-heading { min-width:0;flex:1; }.health-account-metadata { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 0; }.health-account-metadata > div { min-width:0;border:1px solid #e0e8f3;border-radius:10px;background:#f7faff;padding:9px 11px; }.health-account-metadata dt { margin:0 0 4px;color:#74859e;font-size:9px;font-weight:850;letter-spacing:.08em;text-transform:uppercase; }.health-account-metadata dd { margin:0;overflow-wrap:anywhere;color:#25334d;font-size:12px;font-weight:800;line-height:1.35; }
 .health-metadata-wide { grid-column:1 / -1; }.health-profile-value { display:flex;min-width:0;align-items:center;justify-content:space-between;gap:8px;color:#2f7df4;text-decoration:none; }.health-profile-value span { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }.health-profile-value svg { flex:0 0 auto; }.health-profile-value:hover span { text-decoration:underline; }.health-profile-missing { color:#a06a17; }
 .health-edit-account-button { display:inline-flex;align-items:center;gap:6px;margin-top:10px;border:1px solid #cfe0f7;border-radius:8px;color:#2f7df4;background:#f4f8ff;padding:7px 9px;font:inherit;font-size:11px;font-weight:800; }.health-edit-account-button:hover { border-color:#2f7df4;background:#eaf2ff; }
-.health-detail-body { display:grid;gap:17px;overflow:auto;padding:20px 22px; }.health-account-summary,.health-account-edit-form,.health-review-form,.health-pendency-section,.health-review-history { border:1px solid #e1e9f4;border-radius:14px;background:#fbfdff;padding:16px; }.health-account-summary .health-account-metadata { margin-top:0; }.health-account-edit-form { border-color:#bdd5f8;background:#f5f9ff; }
+.health-detail-body { display:grid;gap:17px;overflow:auto;padding:20px 22px; }.health-account-summary,.health-account-edit-form,.health-review-form,.health-pendency-section,.health-review-history,.health-account-audit { border:1px solid #e1e9f4;border-radius:14px;background:#fbfdff;padding:16px; }.health-account-summary .health-account-metadata { margin-top:0; }.health-account-edit-form { border-color:#bdd5f8;background:#f5f9ff; }
 .health-section-title { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px;color:#6c7d95;font-size:11px;font-weight:750; }.health-section-title > div { display:flex;align-items:center;gap:8px;color:#2b3b56; }.health-section-title h3 { margin:0;font-size:14px; }.health-section-title span { color:#7a8ca4;font-size:10px;font-weight:750; }
 .health-account-edit-form label,.health-review-form label { display:grid;gap:6px;margin-top:12px;color:#5d6e86;font-size:11px;font-weight:750; }.health-account-edit-form input,.health-review-form select,.health-review-form textarea,.health-add-pendency input { width:100%;border:1px solid #d8e3f1;border-radius:9px;outline:0;color:#2b3a54;background:#fff;padding:10px 11px;font:inherit;font-size:12px; }.health-account-edit-form input:focus,.health-review-form select:focus,.health-review-form textarea:focus { border-color:#5a91ee;box-shadow:0 0 0 3px rgb(47 125 244 / 10%); }.health-review-form textarea { min-height:92px;resize:vertical; }.health-review-form .sync-button { margin-top:14px; }.health-account-edit-actions { display:flex;justify-content:flex-end;gap:8px;margin-top:14px; }
 .health-add-pendency { display:flex;gap:8px; }.health-add-pendency button { display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;border:0;border-radius:9px;color:#fff;background:#2f7df4;padding:0 11px;font:inherit;font-size:11px;font-weight:800; }.health-pendency-list { display:grid;gap:8px;margin-top:13px; }.health-pendency-list label { display:flex;align-items:center;gap:9px;border:1px solid #e4ebf5;border-radius:9px;color:#40506a;background:#fff;padding:10px 11px;font-size:12px;font-weight:650; }.health-pendency-list label.completed { color:#92a0b3;text-decoration:line-through; }.health-pendency-list input { width:15px;height:15px;accent-color:#2f7df4; }.health-pendency-list p,.health-review-history > p { margin:3px 0;color:#7c8ba1;font-size:12px; }
 .health-review-history article { display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:8px;border-top:1px solid #e7edf5;padding:11px 0; }.health-review-history article:first-of-type { border-top:0; }.health-review-history article strong { color:#35445c;font-size:11px; }.health-chip { width:fit-content;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:800; }.health-chip.green { color:#128365;background:#e5f8f0; }.health-chip.yellow { color:#9c6811;background:#fff4dc; }.health-chip.red { color:#b64036;background:#ffe9e6; }.health-review-history article > span:last-of-type { color:#77879e;font-size:11px; }.health-review-history article p { grid-column:1 / -1;margin:0;color:#5d6e86;font-size:12px;line-height:1.5; }
+.health-audit-list { display:grid;gap:10px; }.health-audit-list > article { border:1px solid #e3eaf4;border-radius:11px;background:#fff;padding:12px; }.health-audit-list article > header { display:flex;align-items:flex-start;justify-content:space-between;gap:12px; }.health-audit-list header strong,.health-audit-list header small { display:block; }.health-audit-list header strong { color:#35445c;font-size:12px; }.health-audit-list header small { margin-top:3px;color:#7c8ba1;font-size:10px; }.health-audit-list time { flex:0 0 auto;color:#8492a7;font-size:10px;font-weight:700; }.health-audit-list dl { display:grid;gap:7px;margin:10px 0 0; }.health-audit-list dl > div { border-radius:8px;background:#f5f8fc;padding:8px 9px; }.health-audit-list dt { margin:0 0 5px;color:#71829a;font-size:9px;font-weight:850;text-transform:uppercase; }.health-audit-list dd { display:flex;align-items:center;gap:7px;margin:0;color:#8190a5;font-size:10px; }.health-audit-list dd span,.health-audit-list dd strong { min-width:0;overflow-wrap:anywhere; }.health-audit-list dd svg { flex:0 0 auto;color:#8fa0b6; }.health-audit-list dd strong { color:#2f6fcf; }.health-audit-empty { margin:0;color:#7c8ba1;font-size:12px; }
 .health-detail-modal > footer { border-top:1px solid #e5ebf4;background:#fbfdff; }.health-end-account { border:0;border-radius:9px;color:#b64036;background:#fff0ee;padding:10px 12px;font:inherit;font-size:11px;font-weight:800; }
 @media (max-width:760px) { .health-hero,.health-list > header { flex-direction:column; }.health-summary,.health-grid { grid-template-columns:1fr; }.health-list > header > span { max-width:none; }.health-form-grid,.health-account-metadata { grid-template-columns:1fr; }.health-detail-modal { width:100%;max-height:92vh;border-radius:20px 20px 0 0; }.health-modal-backdrop { align-items:end;padding:0; }.health-detail-modal > header,.health-detail-modal > footer,.health-detail-body { padding-right:16px;padding-left:16px; }.health-review-history article { grid-template-columns:1fr;gap:5px; }.health-review-history article p { grid-column:auto; }.health-add-pendency button span { display:none; } }
 
@@ -4225,6 +4226,8 @@ td {
     .health-review-form,
     .health-pendency-section,
     .health-review-history,
+    .health-account-audit,
+    .health-audit-list > article,
     .health-pendency-list label,
     .health-account-edit-form input,
     .health-review-form select,
@@ -4243,7 +4246,8 @@ td {
     .health-account h3,
     .health-detail-modal h2,
     .health-section-title > div,
-    .health-review-history article strong
+    .health-review-history article strong,
+    .health-audit-list header strong
   ) { color: #f2f6fd; }
 
 .dashboard-shell[data-theme="dark"] :is(
@@ -4252,12 +4256,18 @@ td {
     .health-detail-modal > header p,
     .health-review-history article > span:last-of-type,
     .health-pendency-list p,
-    .health-review-history > p
+    .health-review-history > p,
+    .health-audit-list header small,
+    .health-audit-empty
   ) { color: #a6b5ca; }
 
 .dashboard-shell[data-theme="dark"] .health-card-metadata > div { background:#13233c; }
 .dashboard-shell[data-theme="dark"] .health-card-metadata dt { color:#89a0c2; }
 .dashboard-shell[data-theme="dark"] .health-card-metadata dd { color:#dce7f7; }
+.dashboard-shell[data-theme="dark"] .health-audit-list dl > div { background:#13233c; }
+.dashboard-shell[data-theme="dark"] .health-audit-list dt { color:#89a0c2; }
+.dashboard-shell[data-theme="dark"] .health-audit-list dd { color:#a6b5ca; }
+.dashboard-shell[data-theme="dark"] .health-audit-list dd strong { color:#8cbbff; }
 
 .dashboard-shell[data-theme="dark"] .health-weekly-reminder { border-color: #355b8f; color: #bdd8ff; background: #132a49; }
 .dashboard-shell[data-theme="dark"] .health-weekly-reminder small { color: #a7c0e5; }

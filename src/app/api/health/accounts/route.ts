@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       nucleus: String(body?.nucleus ?? "").trim(),
       accountHead: String(body?.accountHead ?? "").trim(),
       direction: String(body?.direction ?? "").trim(),
-    }, actor.id);
+    }, { userId: actor.id, email: actor.email, name: actor.name });
     return NextResponse.json({ account }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível cadastrar a conta." }, { status: 500 });
