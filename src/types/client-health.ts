@@ -5,6 +5,7 @@ export type DeliveryStatus = "on_track" | "attention" | "late" | "unknown";
 export type ClientAccount = {
   id: string;
   name: string;
+  cnpj: string;
   profileUrl: string;
   healthStatus: AccountHealth;
   active: boolean;

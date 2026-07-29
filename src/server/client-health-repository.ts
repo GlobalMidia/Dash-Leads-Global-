@@ -18,6 +18,7 @@ function mapAccount(row: Row): ClientAccount {
   return {
     id: String(row.id),
     name: String(row.name),
+    cnpj: String(row.cnpj ?? ""),
     profileUrl: String(row.profile_url ?? ""),
     healthStatus: String(row.health_status) as AccountHealth,
     active: Boolean(row.active),
@@ -78,13 +79,13 @@ export async function listClientAccounts(): Promise<ClientAccount[]> {
 }
 
 export async function createClientAccount(
-  input: Pick<ClientAccount, "name" | "profileUrl" | "nucleus" | "accountHead" | "direction">,
+  input: Pick<ClientAccount, "name" | "cnpj" | "profileUrl" | "nucleus" | "accountHead" | "direction">,
   actorId?: string,
 ) {
   if (!isLiveMode()) throw new Error("Configure o banco antes de cadastrar uma conta.");
   const rows = (await getSql()`
-    INSERT INTO client_accounts (name, profile_url, nucleus, account_head, direction, created_by)
-    VALUES (${input.name}, ${input.profileUrl}, ${input.nucleus}, ${input.accountHead}, ${input.direction}, ${actorId ?? null}::uuid)
+    INSERT INTO client_accounts (name, cnpj, profile_url, nucleus, account_head, direction, created_by)
+    VALUES (${input.name}, ${input.cnpj}, ${input.profileUrl}, ${input.nucleus}, ${input.accountHead}, ${input.direction}, ${actorId ?? null}::uuid)
     RETURNING *
   `) as Row[];
   return mapAccount({ ...rows[0], open_pendencies: 0 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeCnpj } from "@/lib/client-health";
 import { getDashboardUser } from "@/server/dashboard-auth";
 import { createClientAccount, listClientAccounts } from "@/server/client-health-repository";
 
@@ -13,15 +14,21 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const name = String(body?.name ?? "").trim();
+  const rawCnpj = String(body?.cnpj ?? "").trim();
+  const cnpj = normalizeCnpj(rawCnpj);
   const profileUrl = String(body?.profileUrl ?? "").trim();
   if (!name) return NextResponse.json({ error: "Informe o nome do cliente." }, { status: 400 });
-  if (profileUrl && !/^https?:\/\/[^\s]+$/i.test(profileUrl)) {
-    return NextResponse.json({ error: "O link deve começar com http:// ou https://." }, { status: 400 });
+  if (cnpj && cnpj.length !== 14) {
+    return NextResponse.json({ error: "O CNPJ deve possuir 14 números." }, { status: 400 });
+  }
+  if (!profileUrl || !/^https?:\/\/[^\s]+$/i.test(profileUrl)) {
+    return NextResponse.json({ error: "Informe um link profissional começando com http:// ou https://." }, { status: 400 });
   }
 
   try {
     const account = await createClientAccount({
       name,
+      cnpj,
       profileUrl,
       nucleus: String(body?.nucleus ?? "").trim(),
       accountHead: String(body?.accountHead ?? "").trim(),
