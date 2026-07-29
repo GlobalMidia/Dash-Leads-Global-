@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getDashboardUser } from "@/server/dashboard-auth";
-import { getClientAccountDetails, setClientAccountActive } from "@/server/client-health-repository";
+import {
+  getClientAccountDetails,
+  setClientAccountActive,
+  updateClientAccountInformation,
+} from "@/server/client-health-repository";
 
 export async function GET(
   _request: Request,
@@ -19,8 +23,23 @@ export async function PATCH(
 ) {
   if (!(await getDashboardUser())) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  if (typeof body?.active !== "boolean") return NextResponse.json({ error: "Estado da conta inválido." }, { status: 400 });
-  const account = await setClientAccountActive((await params).id, body.active);
+  const accountId = (await params).id;
+
+  if (typeof body?.active === "boolean") {
+    const account = await setClientAccountActive(accountId, body.active);
+    return account
+      ? NextResponse.json({ account })
+      : NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
+  }
+
+  const name = String(body?.name ?? "").trim();
+  if (!name) return NextResponse.json({ error: "Informe o nome da conta." }, { status: 400 });
+  const account = await updateClientAccountInformation(accountId, {
+    name,
+    nucleus: String(body?.nucleus ?? "").trim(),
+    accountHead: String(body?.accountHead ?? "").trim(),
+    direction: String(body?.direction ?? "").trim(),
+  });
   return account
     ? NextResponse.json({ account })
     : NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });

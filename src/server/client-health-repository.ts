@@ -176,3 +176,31 @@ export async function setClientAccountActive(accountId: string, active: boolean)
   `) as Row[];
   return rows[0] ? mapAccount(rows[0]) : null;
 }
+
+export async function updateClientAccountInformation(
+  accountId: string,
+  input: Pick<ClientAccount, "name" | "nucleus" | "accountHead" | "direction">,
+) {
+  if (!isLiveMode()) throw new Error("Configure o banco antes de atualizar uma conta.");
+  const rows = (await getSql()`
+    WITH updated AS (
+      UPDATE client_accounts
+      SET name = ${input.name},
+        nucleus = ${input.nucleus},
+        account_head = ${input.accountHead},
+        direction = ${input.direction},
+        updated_at = NOW()
+      WHERE id = ${accountId}::uuid
+      RETURNING *
+    )
+    SELECT
+      updated.*,
+      COALESCE((
+        SELECT count(*)
+        FROM client_pendencies p
+        WHERE p.client_account_id = updated.id AND p.completed_at IS NULL
+      ), 0) AS open_pendencies
+    FROM updated
+  `) as Row[];
+  return rows[0] ? mapAccount(rows[0]) : null;
+}
