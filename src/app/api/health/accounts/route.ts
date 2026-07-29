@@ -3,9 +3,13 @@ import { normalizeCnpj } from "@/lib/client-health";
 import { getDashboardUser } from "@/server/dashboard-auth";
 import { createClientAccount, listClientAccounts } from "@/server/client-health-repository";
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!(await getDashboardUser())) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  return NextResponse.json({ accounts: await listClientAccounts() });
+  const requestedStatus = new URL(request.url).searchParams.get("status");
+  const status = requestedStatus === "closed" || requestedStatus === "all"
+    ? requestedStatus
+    : "active";
+  return NextResponse.json({ accounts: await listClientAccounts(status) });
 }
 
 export async function POST(request: Request) {

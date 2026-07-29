@@ -39,6 +39,8 @@ function mapAccount(row: Row): ClientAccount {
     direction: String(row.direction ?? ""),
     lastReviewAt: row.last_review_at ? new Date(String(row.last_review_at)).toISOString() : null,
     openPendencies: Number(row.open_pendencies ?? 0),
+    closedAt: row.closed_at ? new Date(String(row.closed_at)).toISOString() : null,
+    closedBy: String(row.closed_by ?? ""),
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString(),
   };
@@ -92,14 +94,39 @@ const accountSelect = `
       SELECT count(*)
       FROM client_pendencies p
       WHERE p.client_account_id = a.id AND p.completed_at IS NULL
-    ), 0) AS open_pendencies
+    ), 0) AS open_pendencies,
+    closure.created_at AS closed_at,
+    COALESCE(
+      closure.metadata->>'actorName',
+      closure.actor_name,
+      closure.actor_email,
+      ''
+    ) AS closed_by
   FROM client_accounts a
+  LEFT JOIN LATERAL (
+    SELECT log.created_at, log.metadata, log.actor_email, actor.name AS actor_name
+    FROM audit_log log
+    LEFT JOIN application_users actor ON actor.id = log.actor_user_id
+    WHERE log.entity_type = 'client_account'
+      AND log.entity_id = a.id::text
+      AND log.action = 'client_account.ended'
+    ORDER BY log.created_at DESC
+    LIMIT 1
+  ) closure ON true
 `;
 
-export async function listClientAccounts(): Promise<ClientAccount[]> {
+export type ClientAccountListStatus = "active" | "closed" | "all";
+
+export async function listClientAccounts(status: ClientAccountListStatus = "active"): Promise<ClientAccount[]> {
   if (!isLiveMode()) return [];
+  const statusFilter = status === "all"
+    ? ""
+    : status === "closed"
+      ? "WHERE a.active = false"
+      : "WHERE a.active = true";
   const rows = (await getSql().query(
-    `${accountSelect} WHERE a.active = true ORDER BY
+    `${accountSelect} ${statusFilter} ORDER BY
+      a.active DESC,
       CASE a.health_status WHEN 'red' THEN 0 WHEN 'yellow' THEN 1 WHEN 'unassessed' THEN 2 ELSE 3 END,
       a.updated_at DESC`,
   )) as Row[];
@@ -271,7 +298,9 @@ export async function setClientAccountActive(
         SELECT count(*)
         FROM client_pendencies p
         WHERE p.client_account_id = updated.id AND p.completed_at IS NULL
-      ), 0) AS open_pendencies
+      ), 0) AS open_pendencies,
+      CASE WHEN updated.active THEN NULL ELSE NOW() END AS closed_at,
+      CASE WHEN updated.active THEN '' ELSE ${actor.name ?? actor.email ?? "Sistema"} END AS closed_by
     FROM updated
   `) as Row[];
   return rows[0] ? mapAccount(rows[0]) : null;

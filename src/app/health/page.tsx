@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
 export default async function HealthPage() {
   const user = await getDashboardUser();
   if (!user) redirect("/login");
-  return <HealthCenter initialAccounts={await listClientAccounts()} initialNow={new Date().toISOString()} mode={isLiveMode() ? "live" : "demo"} user={user} />;
+  return <HealthCenter initialAccounts={await listClientAccounts("all")} initialNow={new Date().toISOString()} mode={isLiveMode() ? "live" : "demo"} user={user} />;
 }

@@ -14,6 +14,8 @@ export type ClientAccount = {
   direction: string;
   lastReviewAt: string | null;
   openPendencies: number;
+  closedAt: string | null;
+  closedBy: string;
   createdAt: string;
   updatedAt: string;
 };
