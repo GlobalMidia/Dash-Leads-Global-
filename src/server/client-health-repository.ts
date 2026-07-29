@@ -306,6 +306,75 @@ export async function setClientAccountActive(
   return rows[0] ? mapAccount(rows[0]) : null;
 }
 
+/**
+ * Permanently removes an already closed account and all of its related data.
+ * Reviews and pendencies cascade from client_accounts; audit records are removed
+ * explicitly because they are intentionally not foreign-key constrained.
+ */
+export async function permanentlyDeleteClosedClientAccount(accountId: string) {
+  if (!isLiveMode()) throw new Error("Configure o banco antes de excluir uma conta.");
+  const rows = (await getSql().query(
+    `WITH closed_account AS MATERIALIZED (
+       SELECT id
+       FROM client_accounts
+       WHERE id = $1::uuid AND active = false
+       FOR UPDATE
+     ),
+     deleted_audit AS (
+       DELETE FROM audit_log log
+       USING closed_account account
+       WHERE log.entity_type = 'client_account'
+         AND log.entity_id = account.id::text
+     ),
+     deleted_account AS (
+       DELETE FROM client_accounts account
+       USING closed_account closed
+       WHERE account.id = closed.id
+       RETURNING account.id
+     )
+     SELECT id FROM deleted_account`,
+    [accountId],
+  )) as Row[];
+  return rows.length > 0;
+}
+
+/** Removes every account that has remained closed for at least seven days. */
+export async function purgeExpiredClosedClientAccounts() {
+  if (!isLiveMode()) return [] as string[];
+  const rows = (await getSql().query(
+    `WITH expired_accounts AS MATERIALIZED (
+       SELECT account.id
+       FROM client_accounts account
+       JOIN LATERAL (
+         SELECT log.created_at
+         FROM audit_log log
+         WHERE log.entity_type = 'client_account'
+           AND log.entity_id = account.id::text
+           AND log.action = 'client_account.ended'
+         ORDER BY log.created_at DESC
+         LIMIT 1
+       ) closure ON true
+       WHERE account.active = false
+         AND closure.created_at <= NOW() - INTERVAL '7 days'
+       FOR UPDATE
+     ),
+     deleted_audit AS (
+       DELETE FROM audit_log log
+       USING expired_accounts account
+       WHERE log.entity_type = 'client_account'
+         AND log.entity_id = account.id::text
+     ),
+     deleted_accounts AS (
+       DELETE FROM client_accounts account
+       USING expired_accounts expired
+       WHERE account.id = expired.id
+       RETURNING account.id::text AS id
+     )
+     SELECT id FROM deleted_accounts`,
+  )) as Row[];
+  return rows.map((row) => String(row.id));
+}
+
 export async function updateClientAccountInformation(
   accountId: string,
   input: Pick<ClientAccount, "name" | "nucleus" | "accountHead" | "direction">,

@@ -34,6 +34,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
   const [accountSearch, setAccountSearch] = useState("");
   const [form, setForm] = useState({ name: "", cnpj: "", profileUrl: "", nucleus: "", accountHead: "", direction: "" });
   const [accountEdit, setAccountEdit] = useState<AccountEditForm | null>(null);
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState(false);
   const [review, setReview] = useState<ReviewForm>({ healthStatus: "yellow", satisfaction: "unknown", deliveryStatus: "unknown", notes: "" });
   const [pendencyTitle, setPendencyTitle] = useState("");
   const [now, setNow] = useState(() => new Date(initialNow));
@@ -244,6 +245,33 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
     }
   }
 
+  function closedAccountRetentionLabel(account: ClientAccount) {
+    if (!account.closedAt) return "Exclusão automática em até 7 dias";
+    const purgeAt = new Date(account.closedAt).getTime() + 7 * 86_400_000;
+    const remainingDays = Math.max(0, Math.ceil((purgeAt - now.getTime()) / 86_400_000));
+    return remainingDays === 0
+      ? "Exclusão automática prevista para hoje"
+      : `Exclusão automática em ${remainingDays} dia${remainingDays === 1 ? "" : "s"}`;
+  }
+
+  async function permanentlyDeleteAccount() {
+    if (!selected || selected.active) return;
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/health/accounts/${selected.id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => null) as { deleted?: boolean; error?: string } | null;
+      if (!response.ok || !data?.deleted) throw new Error(data?.error ?? "Não foi possível excluir a conta.");
+      setAccounts((current) => current.filter((account) => account.id !== selected.id));
+      setSelected(null);
+      setPermanentDeleteConfirm(false);
+      setNotice("Conta excluída definitivamente, junto com seu histórico, avaliações e pendências.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível excluir a conta.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return <div className="dashboard-shell health-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
     <header className="topbar"><button className="brand-lockup" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button><div className="topbar-actions"><span className={`mode-pill ${mode}`}><span className="mode-dot" />{mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}</span><button aria-expanded={alertsOpen} aria-haspopup="dialog" aria-label={`Central de avisos, ${alertItems.length} aviso${alertItems.length === 1 ? "" : "s"}`} className="icon-button health-alert-trigger" onClick={() => setAlertsOpen((open) => !open)} type="button"><Bell size={18}/>{alertItems.length > 0 && <span>{alertItems.length > 99 ? "99+" : alertItems.length}</span>}</button><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div></header>
     <aside className="side-rail" aria-label="Navegação principal"><button className="rail-button" onClick={() => go("/")} title="Painel de leads" type="button"><LayoutDashboard size={19} /></button><button className="rail-button" onClick={() => go("/pme")} title="PME e reativação" type="button"><Building2 size={19} /></button><button className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="Saúde das contas" type="button"><HeartPulse size={19} /></button></aside>
@@ -258,7 +286,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
     <section className="health-list">
       <header>
         <div><p className="eyebrow">ACOMPANHAMENTO</p><h2>{accountView === "active" ? "Clientes ativos" : "Contas encerradas"}</h2></div>
-        <span>{accountView === "active" ? "Abra uma conta para registrar o estado do cliente, entregas, pendências e o histórico semanal." : "Consulte o histórico completo ou reative uma conta para retomar o acompanhamento semanal."}</span>
+        <span>{accountView === "active" ? "Abra uma conta para registrar o estado do cliente, entregas, pendências e o histórico semanal." : "Consulte o histórico, reative se necessário ou exclua definitivamente. Contas encerradas são removidas automaticamente após 7 dias."}</span>
       </header>
       <div className="health-account-controls">
         <div className="health-account-tabs" role="tablist" aria-label="Situação das contas">
@@ -271,7 +299,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
         <div className="health-account-title"><span><Building2 size={18}/></span><div><h3>{account.name}</h3>{!account.active && <p>Conta encerrada</p>}</div></div>
         <dl className="health-card-metadata"><div><dt>Núcleo</dt><dd>{account.nucleus || "Não definido"}</dd></div><div><dt>Head responsável</dt><dd>{account.accountHead || "Não informado"}</dd></div><div><dt>Direção</dt><dd>{account.direction || "Não informada"}</dd></div><div><dt>Perfil profissional</dt><dd>{account.profileUrl ? <a href={account.profileUrl} rel="noreferrer" target="_blank" title={account.profileUrl}><span>{account.profileUrl}</span><ExternalLink size={12}/></a> : "Não informado"}</dd></div></dl>
         <b>{account.active ? healthLabel[account.healthStatus] : "Encerrada"}</b>
-        <footer><span>{account.active ? `${account.openPendencies} pendência${account.openPendencies === 1 ? "" : "s"} aberta${account.openPendencies === 1 ? "" : "s"}` : account.closedAt ? `Encerrada em ${new Date(account.closedAt).toLocaleDateString("pt-BR")}${account.closedBy ? ` por ${account.closedBy}` : ""}` : "Histórico preservado"}</span><button onClick={() => void openAccount(account)} type="button">{loadingAccount === account.id ? <LoaderCircle className="animate-spin" size={14}/> : account.active ? "Acompanhar" : "Ver histórico"}</button></footer>
+        <footer><span>{account.active ? `${account.openPendencies} pendência${account.openPendencies === 1 ? "" : "s"} aberta${account.openPendencies === 1 ? "" : "s"}` : <><span>{account.closedAt ? `Encerrada em ${new Date(account.closedAt).toLocaleDateString("pt-BR")}${account.closedBy ? ` por ${account.closedBy}` : ""}` : "Histórico preservado"}</span><small>{closedAccountRetentionLabel(account)}</small></>}</span><button onClick={() => void openAccount(account)} type="button">{loadingAccount === account.id ? <LoaderCircle className="animate-spin" size={14}/> : account.active ? "Acompanhar" : "Ver histórico"}</button></footer>
       </article>)}</div> : <div className="health-empty"><HeartPulse size={30}/><h2>{accountSearch ? "Nenhuma conta encontrada" : accountView === "active" ? "Comece pela primeira conta" : "Nenhuma conta encerrada"}</h2><p>{accountSearch ? "Revise o termo pesquisado ou limpe a busca." : accountView === "active" ? "Cadastre um cliente para organizar as avaliações, entregas e pendências semanais." : "Quando uma conta for encerrada, o histórico dela ficará disponível aqui."}</p>{accountView === "active" && !accountSearch && <button className="sync-button" onClick={() => setCreateOpen(true)} type="button"><Plus size={16}/>Cadastrar cliente</button>}</div>}
     </section>
     {notice && <div className="toast-notice">{notice}<button onClick={() => setNotice("")} type="button"><X size={15}/></button></div>}
@@ -280,7 +308,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
       <section aria-modal="true" className="health-detail-modal" role="dialog">
         <header>
           <div className="health-detail-heading"><p className="eyebrow">{selected.active ? "ACOMPANHAMENTO SEMANAL" : "HISTÓRICO DA CONTA"}</p><h2>{selected.name}</h2>{!selected.active && <span className="health-closed-heading">Conta encerrada{selected.closedAt ? ` em ${new Date(selected.closedAt).toLocaleDateString("pt-BR")}` : ""}{selected.closedBy ? ` por ${selected.closedBy}` : ""}</span>}</div>
-          <button aria-label="Fechar conta" onClick={() => { setSelected(null); setAccountEdit(null); }} type="button"><X size={18}/></button>
+          <button aria-label="Fechar conta" onClick={() => { setSelected(null); setAccountEdit(null); setPermanentDeleteConfirm(false); }} type="button"><X size={18}/></button>
         </header>
         <div className="health-detail-body">
           <section className="health-account-summary">
@@ -294,7 +322,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
           <section className="health-review-history"><div className="health-section-title"><div><Activity size={17}/><h3>Histórico semanal</h3></div></div>{selected.reviews.length ? selected.reviews.slice(0, 6).map((item) => <article key={item.id}><strong>{item.reviewWeek.slice(0,10).split("-").reverse().join("/")}</strong><span className={`health-chip ${item.healthStatus}`}>{healthLabel[item.healthStatus]}</span><span>{satisfactionLabel[item.satisfaction]} · Entregas {deliveryLabel[item.deliveryStatus]}</span>{item.notes && <p>{item.notes}</p>}</article>) : <p>A primeira revisão ainda não foi registrada.</p>}</section>
           <section className="health-account-audit"><div className="health-section-title"><div><History size={17}/><h3>Auditoria da conta</h3></div><span>Quem alterou, quando e o que mudou</span></div>{selected.auditEvents.length ? <div className="health-audit-list">{selected.auditEvents.slice(0,20).map((event) => <article key={event.id}><header><div><strong>{event.title}</strong><small>por {event.actor}{event.actorEmail && event.actorEmail !== event.actor ? ` · ${event.actorEmail}` : ""}</small></div><time>{new Date(event.occurredAt).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</time></header>{event.changes.length > 0 && <dl>{event.changes.map((change) => <div key={change.field}><dt>{change.label}</dt><dd><span>{change.before}</span><ArrowRight size={13}/><strong>{change.after}</strong></dd></div>)}</dl>}</article>)}</div> : <p className="health-audit-empty">A auditoria será exibida a partir da próxima alteração desta conta.</p>}</section>
         </div>
-        <footer>{selected.active ? <button className="health-end-account" onClick={() => void endAccount()} type="button">Encerrar conta</button> : <button className="health-reactivate-account" disabled={saving} onClick={() => void reactivateAccount()} type="button"><RotateCcw size={14}/>{saving ? "Reativando..." : "Reativar conta"}</button>}<button className="tutorial-button" onClick={() => { setSelected(null); setAccountEdit(null); }} type="button">Fechar</button></footer>
+        <footer>{selected.active ? <button className="health-end-account" onClick={() => void endAccount()} type="button">Encerrar conta</button> : <div className="health-closed-actions"><span>{closedAccountRetentionLabel(selected)}</span>{permanentDeleteConfirm ? <div className="health-delete-confirm"><strong>Excluir definitivamente?</strong><small>Remove a conta e todos os dados relacionados, sem recuperação.</small><button className="tutorial-button" disabled={saving} onClick={() => setPermanentDeleteConfirm(false)} type="button">Cancelar</button><button className="health-permanent-delete" disabled={saving} onClick={() => void permanentlyDeleteAccount()} type="button">{saving ? "Excluindo..." : "Confirmar exclusão"}</button></div> : <><button className="health-reactivate-account" disabled={saving} onClick={() => void reactivateAccount()} type="button"><RotateCcw size={14}/>{saving ? "Reativando..." : "Reativar conta"}</button><button className="health-permanent-delete" disabled={saving} onClick={() => setPermanentDeleteConfirm(true)} type="button">Excluir definitivamente</button></>}</div>}<button className="tutorial-button" onClick={() => { setSelected(null); setAccountEdit(null); setPermanentDeleteConfirm(false); }} type="button">Fechar</button></footer>
       </section>
     </div>}
     </main></div>;

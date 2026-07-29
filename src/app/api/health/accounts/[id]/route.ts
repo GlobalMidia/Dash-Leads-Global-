@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDashboardUser } from "@/server/dashboard-auth";
 import {
   getClientAccountDetails,
+  permanentlyDeleteClosedClientAccount,
   setClientAccountActive,
   updateClientAccountInformation,
 } from "@/server/client-health-repository";
@@ -15,6 +16,17 @@ export async function GET(
   return account
     ? NextResponse.json({ account })
     : NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!(await getDashboardUser())) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const deleted = await permanentlyDeleteClosedClientAccount((await params).id);
+  return deleted
+    ? NextResponse.json({ deleted: true })
+    : NextResponse.json({ error: "A conta não foi encontrada ou ainda está ativa." }, { status: 404 });
 }
 
 export async function PATCH(
