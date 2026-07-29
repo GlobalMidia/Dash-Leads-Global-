@@ -85,9 +85,16 @@ function mapImportBatchRecord(row: Row): PmeImportBatchRecord {
     sourceRow: Number(row.source_row),
     category: String(row.category),
     companyName: String(row.company_name),
+    normalizedCompany: String(row.normalized_company),
     contactName: String(row.contact_name ?? ""),
     phone: String(row.phone ?? ""),
+    website: String(row.website ?? ""),
     historicStatus: String(row.historic_status ?? ""),
+    historicValue: row.historic_value === null || row.historic_value === undefined ? null : Number(row.historic_value),
+    recordedAt: row.recorded_at ? new Date(String(row.recorded_at)).toISOString() : null,
+    contactAt: row.contact_at ? new Date(String(row.contact_at)).toISOString() : null,
+    displayedAt: row.displayed_at ? new Date(String(row.displayed_at)).toISOString() : null,
+    notes: String(row.notes ?? ""),
   };
 }
 
@@ -113,7 +120,7 @@ const companyQuery = `
   ORDER BY latest_activity_at DESC NULLS LAST, company_name ASC
 `;
 
-export async function getPmeDirectory(): Promise<PmeDirectoryData> {
+export async function getPmeDirectory(userId?: string): Promise<PmeDirectoryData> {
   if (!isLiveMode()) return { companies: [], importedRecords: 0, latestImportAt: null, importBatches: [] };
   const sql = getSql();
   const [companies, totals, batches] = await Promise.all([
@@ -123,8 +130,11 @@ export async function getPmeDirectory(): Promise<PmeDirectoryData> {
       SELECT b.*, COALESCE(NULLIF(u.name, ''), b.imported_by_email, '') AS imported_by_name
       FROM pme_import_batches b
       LEFT JOIN application_users u ON u.id = b.imported_by
-      ORDER BY b.created_at DESC
-    `) as Promise<Row[]>,
+      LEFT JOIN pme_import_batch_order custom_order
+        ON custom_order.import_batch_id = b.id
+        AND custom_order.application_user_id = $1::uuid
+      ORDER BY custom_order.position ASC NULLS LAST, b.created_at DESC
+    `, [userId ?? null]) as Promise<Row[]>,
   ]);
   const summary = totals[0] ?? {};
   return {
@@ -147,7 +157,9 @@ export async function getPmeImportBatchDetails(batchId: string): Promise<PmeImpo
       LIMIT 1
     `, [batchId]) as Promise<Row[]>,
     sql.query(`
-      SELECT id, source_sheet, source_row, category, company_name, contact_name, phone, historic_status
+      SELECT id, source_sheet, source_row, category, company_name, normalized_company,
+        contact_name, phone, website, historic_status, historic_value,
+        recorded_at, contact_at, displayed_at, notes
       FROM pme_reactivation_records
       WHERE import_batch_id = $1
       ORDER BY source_sheet ASC, source_row ASC
@@ -156,6 +168,34 @@ export async function getPmeImportBatchDetails(batchId: string): Promise<PmeImpo
   ]);
   const batch = batches[0];
   return batch ? { ...mapImportBatch(batch), records: records.map(mapImportBatchRecord) } : null;
+}
+
+export async function savePmeImportBatchOrder(userId: string, batchIds: string[]) {
+  if (!isLiveMode()) return;
+  const sql = getSql();
+  const orderedBatches = batchIds.map((batchId, position) => ({ batch_id: batchId, position }));
+
+  await sql.transaction([
+    sql`
+      DELETE FROM pme_import_batch_order
+      WHERE application_user_id = ${userId}::uuid
+    `,
+    sql`
+      INSERT INTO pme_import_batch_order (
+        application_user_id, import_batch_id, position, updated_at
+      )
+      SELECT
+        ${userId}::uuid,
+        item.batch_id::uuid,
+        item.position,
+        NOW()
+      FROM jsonb_to_recordset(${JSON.stringify(orderedBatches)}::jsonb)
+        AS item(batch_id text, position integer)
+      INNER JOIN pme_import_batches batch ON batch.id = item.batch_id::uuid
+      ON CONFLICT (application_user_id, import_batch_id)
+      DO UPDATE SET position = EXCLUDED.position, updated_at = NOW()
+    `,
+  ]);
 }
 
 export async function getPmeCompanyDetails(normalizedCompany: string): Promise<PmeCompanyDetails | null> {

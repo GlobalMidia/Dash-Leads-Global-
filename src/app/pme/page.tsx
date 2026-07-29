@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function PmePage() {
   const user = await getDashboardUser();
   if (!user) redirect("/login");
-  const directory = await getPmeDirectory();
+  const directory = await getPmeDirectory(user.id);
 
   return (
     <PmeReactivationDirectory

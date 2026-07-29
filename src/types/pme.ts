@@ -54,9 +54,16 @@ export type PmeImportBatchRecord = {
   sourceRow: number;
   category: string;
   companyName: string;
+  normalizedCompany: string;
   contactName: string;
   phone: string;
+  website: string;
   historicStatus: string;
+  historicValue: number | null;
+  recordedAt: string | null;
+  contactAt: string | null;
+  displayedAt: string | null;
+  notes: string;
 };
 
 export type PmeImportBatchDetails = PmeImportBatch & {
