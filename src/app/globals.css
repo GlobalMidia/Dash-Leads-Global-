@@ -173,6 +173,27 @@ select:disabled {
   background: #f7f9fc;
 }
 
+.health-alert-trigger {
+  position: relative;
+}
+
+.health-alert-trigger > span {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  color: #fff;
+  background: #df5148;
+  padding: 0 4px;
+  font-size: 8px;
+  font-weight: 850;
+}
+
 .mobile-profile-button {
   display: none;
 }
@@ -537,6 +558,15 @@ select:disabled {
 .health-summary strong { display:block; margin-top:4px; color:#24324b; font-size:25px; }
 .health-alert { display:flex; align-items:center; gap:12px; margin-bottom:18px; border:1px solid #ffd6d0; border-radius:14px; color:#b33f36; background:#fff5f3; padding:13px 16px; }
 .health-alert strong,.health-alert small { display:block; } .health-alert small { margin-top:2px; color:#8a655f; font-size:12px; }
+.health-alert-center { margin-bottom:18px;border:1px solid #d9e3f2;border-radius:16px;background:#fff;box-shadow:0 14px 34px rgb(28 55 92 / 10%);overflow:hidden; }
+.health-alert-center > header { display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-bottom:1px solid #e6edf5;padding:16px 18px; }
+.health-alert-center h2 { margin:4px 0;color:#27354e;font-size:17px;letter-spacing:-.025em; }.health-alert-center header span { color:#75869d;font-size:11px; }
+.health-alert-center > header > button { display:grid;width:30px;height:30px;flex:0 0 auto;place-items:center;border:1px solid #dce6f2;border-radius:9px;color:#74839a;background:#fff; }
+.health-alert-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px; }
+.health-alert-item { display:flex;min-width:0;align-items:center;gap:10px;border:1px solid #e1e9f4;border-radius:11px;color:#33425c;background:#fbfdff;padding:11px;text-align:left;font:inherit;transition:160ms ease; }
+.health-alert-item:hover { border-color:#9ac0f5;background:#f4f8ff;transform:translateY(-1px); }.health-alert-item > span { display:grid;width:31px;height:31px;flex:0 0 auto;place-items:center;border-radius:9px;color:#497be0;background:#e9f1ff; }.health-alert-item.urgent > span { color:#c24740;background:#ffebe8; }.health-alert-item.pending > span { color:#9c6811;background:#fff4dd; }
+.health-alert-item > div { min-width:0;flex:1; }.health-alert-item strong,.health-alert-item small { display:block; }.health-alert-item strong { color:#35435d;font-size:11px; }.health-alert-item small { margin-top:3px;color:#78889e;font-size:10px;line-height:1.4; }.health-alert-item > svg { flex:0 0 auto;color:#8ba0bc; }
+.health-alert-empty { display:grid;justify-items:center;gap:8px;padding:30px 20px;color:#7990ad;text-align:center; }.health-alert-empty svg { color:#48a587; }.health-alert-empty p { max-width:440px;margin:0;font-size:12px;line-height:1.5; }
 .health-list { border:1px solid #d9e3f2; border-radius:18px; background:#fff; padding:22px; }
 .health-list > header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px; }
 .health-list h2 { margin:4px 0 0; color:#26334b; font-size:20px; letter-spacing:-.03em; } .health-list > header > span { max-width:330px; color:#718096; font-size:12px; line-height:1.55; }
@@ -4286,6 +4316,9 @@ td {
 .dashboard-shell[data-theme="dark"] .health-weekly-reminder small { color: #a7c0e5; }
 .dashboard-shell[data-theme="dark"] .health-alert { border-color: #78413f; color: #ffbcb4; background: #351d27; }
 .dashboard-shell[data-theme="dark"] .health-alert small { color: #e5a8a1; }
+.dashboard-shell[data-theme="dark"] .health-alert-center { border-color:#334258;background:#162238;box-shadow:0 14px 34px rgb(0 0 0 / 24%); }
+.dashboard-shell[data-theme="dark"] .health-alert-center > header { border-color:#334258; }.dashboard-shell[data-theme="dark"] .health-alert-center h2,.dashboard-shell[data-theme="dark"] .health-alert-item strong { color:#eef5ff; }.dashboard-shell[data-theme="dark"] .health-alert-center header span,.dashboard-shell[data-theme="dark"] .health-alert-item small,.dashboard-shell[data-theme="dark"] .health-alert-empty { color:#a6b5ca; }
+.dashboard-shell[data-theme="dark"] .health-alert-center > header > button,.dashboard-shell[data-theme="dark"] .health-alert-item { border-color:#334258;color:#d9e3f2;background:#111f34; }.dashboard-shell[data-theme="dark"] .health-alert-item:hover { border-color:#4e7fbd;background:#162b48; }.dashboard-shell[data-theme="dark"] .health-alert-item > span { color:#8cbbff;background:#173152; }.dashboard-shell[data-theme="dark"] .health-alert-item.urgent > span { color:#ffbcb4;background:#452331; }.dashboard-shell[data-theme="dark"] .health-alert-item.pending > span { color:#f2c47a;background:#3c2e18; }
 .dashboard-shell[data-theme="dark"] .health-profile-value { color: #8cbbff; }
 .dashboard-shell[data-theme="dark"] .health-profile-missing { color: #f2c47a; }
 .dashboard-shell[data-theme="dark"] .health-account-metadata > div { border-color: #2d4263; background: #13233c; }
@@ -4561,6 +4594,14 @@ td {
   .user-badge,
   .icon-button {
     display: none;
+  }
+
+  .icon-button.health-alert-trigger {
+    display: grid;
+  }
+
+  .health-alert-list {
+    grid-template-columns: 1fr;
   }
 
   .mobile-profile-button {

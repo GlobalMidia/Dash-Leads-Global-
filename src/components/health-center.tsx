@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowRight, Building2, Check, ClipboardList, ExternalLink, HeartPulse, History, LayoutDashboard, LoaderCircle, Pencil, Plus, RotateCcw, Search, ShieldCheck, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowRight, Bell, Building2, Check, ClipboardList, ExternalLink, HeartPulse, History, LayoutDashboard, LoaderCircle, Pencil, Plus, RotateCcw, Search, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import {
@@ -29,6 +29,7 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [redAlertOpen, setRedAlertOpen] = useState(true);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [accountView, setAccountView] = useState<"active" | "closed">("active");
   const [accountSearch, setAccountSearch] = useState("");
   const [form, setForm] = useState({ name: "", cnpj: "", profileUrl: "", nucleus: "", accountHead: "", direction: "" });
@@ -44,6 +45,30 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
   const reviewNeeded = activeAccounts.filter((account) => isWeeklyReviewPending(account, now)).length;
   const weeklyReminder = reviewNeeded > 0;
   const currentFridayReminder = isCurrentFridayReminder(now);
+  const alertItems = useMemo(() => {
+    const items: Array<{ id: string; account: ClientAccount; level: "urgent" | "pending" | "attention"; title: string; description: string }> = [];
+    const millisecondsPerDay = 86_400_000;
+
+    for (const account of activeAccounts) {
+      if (account.healthStatus === "red") {
+        items.push({ id: `urgent-${account.id}`, account, level: "urgent", title: "Conta com prioridade urgente", description: `${account.name} foi marcada como urgente na última revisão.` });
+      }
+      if (isWeeklyReviewPending(account, now)) {
+        items.push({ id: `review-${account.id}`, account, level: "pending", title: "Revisão semanal pendente", description: `${account.name} precisa de uma atualização semanal.` });
+      }
+      if (account.openPendencies > 0) {
+        items.push({ id: `pendency-${account.id}`, account, level: "attention", title: `${account.openPendencies} pendência${account.openPendencies === 1 ? "" : "s"} aberta${account.openPendencies === 1 ? "" : "s"}`, description: `Há itens em aberto no acompanhamento de ${account.name}.` });
+      }
+      const referenceDate = new Date(account.lastReviewAt ?? account.createdAt);
+      const inactiveDays = Math.floor((now.getTime() - referenceDate.getTime()) / millisecondsPerDay);
+      if (Number.isFinite(inactiveDays) && inactiveDays >= 21) {
+        items.push({ id: `stale-${account.id}`, account, level: "attention", title: "Conta sem atualização recente", description: `${account.name} não recebe revisão há ${inactiveDays} dias.` });
+      }
+    }
+
+    const priority = { urgent: 0, pending: 1, attention: 2 } as const;
+    return items.sort((a, b) => priority[a.level] - priority[b.level] || a.account.name.localeCompare(b.account.name, "pt-BR"));
+  }, [activeAccounts, now]);
   const orderedAccounts = useMemo(() => {
     const normalizedSearch = accountSearch.trim().toLocaleLowerCase("pt-BR");
     const visibleAccounts = (accountView === "active" ? activeAccounts : closedAccounts)
@@ -98,6 +123,11 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
       setReview(latest ? { healthStatus: latest.healthStatus, satisfaction: latest.satisfaction, deliveryStatus: latest.deliveryStatus, notes: latest.notes } : { healthStatus: account.healthStatus === "unassessed" ? "yellow" : account.healthStatus, satisfaction: "unknown", deliveryStatus: "unknown", notes: "" });
     } catch (error) { setNotice(error instanceof Error ? error.message : "Não foi possível abrir a conta."); }
     finally { setLoadingAccount(null); }
+  }
+
+  function openAlertAccount(account: ClientAccount) {
+    setAlertsOpen(false);
+    void openAccount(account);
   }
 
   function beginAccountEdit() {
@@ -215,11 +245,15 @@ export function HealthCenter({ initialAccounts, initialNow, mode, user }: Props)
   }
 
   return <div className="dashboard-shell health-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
-    <header className="topbar"><button className="brand-lockup" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button><div className="topbar-actions"><span className={`mode-pill ${mode}`}><span className="mode-dot" />{mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}</span><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div></header>
+    <header className="topbar"><button className="brand-lockup" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button><div className="topbar-actions"><span className={`mode-pill ${mode}`}><span className="mode-dot" />{mode === "live" ? "Dados ao vivo" : "Dados demonstrativos"}</span><button aria-expanded={alertsOpen} aria-haspopup="dialog" aria-label={`Central de avisos, ${alertItems.length} aviso${alertItems.length === 1 ? "" : "s"}`} className="icon-button health-alert-trigger" onClick={() => setAlertsOpen((open) => !open)} type="button"><Bell size={18}/>{alertItems.length > 0 && <span>{alertItems.length > 99 ? "99+" : alertItems.length}</span>}</button><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div></header>
     <aside className="side-rail" aria-label="Navegação principal"><button className="rail-button" onClick={() => go("/")} title="Painel de leads" type="button"><LayoutDashboard size={19} /></button><button className="rail-button" onClick={() => go("/pme")} title="PME e reativação" type="button"><Building2 size={19} /></button><button className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="Saúde das contas" type="button"><HeartPulse size={19} /></button></aside>
     <main className="dashboard-main health-center"><section className="health-hero"><div><p className="eyebrow">CUSTOMER EXPERIENCE</p><h1>Saúde das contas</h1><p className="hero-subtitle">Acompanhe o estado de cada cliente, entregas, pendências e a revisão semanal.</p></div><button className="sync-button" onClick={() => setCreateOpen(true)} type="button"><Plus size={17} />Nova conta</button></section>
     {weeklyReminder && <section className="health-weekly-reminder"><ClipboardList size={19}/><div><strong>Revisão semanal pendente</strong><small>{reviewNeeded} conta{reviewNeeded > 1 ? "s" : ""} ainda precisa{reviewNeeded === 1 ? "" : "m"} de atualização {currentFridayReminder ? "nesta sexta-feira" : "desde a última sexta-feira"}.</small></div></section>}
-    {red.length > 0 && redAlertOpen && <section className="health-alert"><AlertTriangle size={18} /><div><strong>{red.length} conta{red.length > 1 ? "s" : ""} com prioridade urgente</strong><small>O aviso pode ser fechado, mas essas contas seguem no topo da lista.</small></div><button aria-label="Fechar alerta urgente" onClick={() => setRedAlertOpen(false)} type="button"><X size={16}/></button></section>}
+    {red.length > 0 && redAlertOpen && <section className="health-alert"><AlertTriangle size={18} /><div><strong>{red.length} conta{red.length > 1 ? "s" : ""} com prioridade urgente</strong><small>O aviso pode ser fechado, mas essas contas continuam prioritárias na Central de Avisos.</small></div><button aria-label="Fechar alerta urgente" onClick={() => setRedAlertOpen(false)} type="button"><X size={16}/></button></section>}
+    {alertsOpen && <section aria-label="Central de avisos" className="health-alert-center" role="dialog">
+      <header><div><p className="eyebrow">ACOMPANHAMENTO</p><h2>Central de Avisos</h2><span>{alertItems.length ? `${alertItems.length} aviso${alertItems.length === 1 ? "" : "s"} que merecem atenção` : "Nenhum aviso pendente"}</span></div><button aria-label="Fechar central de avisos" onClick={() => setAlertsOpen(false)} type="button"><X size={17}/></button></header>
+      {alertItems.length ? <div className="health-alert-list">{alertItems.map((item) => <button className={`health-alert-item ${item.level}`} key={item.id} onClick={() => openAlertAccount(item.account)} type="button"><span>{item.level === "urgent" ? <AlertTriangle size={17}/> : item.level === "pending" ? <ClipboardList size={17}/> : <Check size={17}/>}</span><div><strong>{item.title}</strong><small>{item.description}</small></div><ArrowRight size={16}/></button>)}</div> : <div className="health-alert-empty"><Bell size={22}/><p>Todas as contas estão em dia. A central avisará quando houver uma revisão, pendência ou prioridade a tratar.</p></div>}
+    </section>}
     <section className="health-summary"><article><Activity size={20}/><div><small>CONTAS ATIVAS</small><strong>{activeAccounts.length}</strong></div></article><article><ShieldCheck size={20}/><div><small>REVISÃO DA SEMANA</small><strong>{reviewNeeded}</strong></div></article><article><AlertTriangle size={20}/><div><small>URGENTES</small><strong>{red.length}</strong></div></article></section>
     <section className="health-list">
       <header>
