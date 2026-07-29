@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LoaderCircle,
   Search,
+  Trash2,
   Upload,
   Users,
   X,
@@ -119,8 +120,10 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
   const [loadingCompany, setLoadingCompany] = useState<string | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<PmeImportBatchDetails | null>(null);
   const [selectedBatchCompany, setSelectedBatchCompany] = useState<PmeBatchCompanyGroup | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PmeImportBatch | null>(null);
   const [loadingBatch, setLoadingBatch] = useState<string | null>(null);
   const [reorderingBatch, setReorderingBatch] = useState<string | null>(null);
+  const [deletingBatch, setDeletingBatch] = useState(false);
   const [batchRecordQuery, setBatchRecordQuery] = useState("");
   const [batchRecordPage, setBatchRecordPage] = useState(1);
   const go = (path: string) => window.location.assign(path);
@@ -197,6 +200,30 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
   function closeImportBatch() {
     setSelectedBatch(null);
     setSelectedBatchCompany(null);
+  }
+
+  async function removeImportBatch() {
+    if (!deleteTarget || deletingBatch) return;
+    setDeletingBatch(true);
+
+    try {
+      const response = await fetch(`/api/pme/imports/${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+      });
+      const result = await response.json().catch(() => ({})) as {
+        deletedRecords?: number;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível remover a planilha.");
+
+      setDeleteTarget(null);
+      setNotice(`${result.deletedRecords ?? deleteTarget.importedRows} registros foram removidos com a planilha. Atualizando o diretório...`);
+      window.setTimeout(() => window.location.reload(), 650);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível remover a planilha.");
+    } finally {
+      setDeletingBatch(false);
+    }
   }
 
   async function chooseFile(file?: File) {
@@ -342,6 +369,15 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
                   <ArrowDown size={14}/>
                 </button>
               </div>
+              <button
+                aria-label={`Remover ${batch.fileName}`}
+                className="pme-batch-delete"
+                onClick={() => setDeleteTarget(batch)}
+                title="Remover planilha"
+                type="button"
+              >
+                <Trash2 size={15}/>
+              </button>
               <button className="pme-batch-open" onClick={() => void openImportBatch(batch)} type="button">{loadingBatch === batch.id ? <LoaderCircle className="animate-spin" size={15}/> : <>Abrir<ChevronRight size={15}/></>}</button>
             </article>;
           }) : <p className="pme-batch-empty">Nenhuma planilha corresponde à pesquisa.</p>}</div> : <p className="pme-batch-empty">Quando uma planilha for confirmada, ela aparecerá aqui como uma origem separada.</p>}
@@ -363,6 +399,24 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
         </> : <section className="pme-empty-card" aria-labelledby="pme-ready-title"><div className="pme-empty-icon"><FileSpreadsheet size={30} /></div><div><h2 id="pme-ready-title">Importe a base de reativação</h2><p>Selecione a planilha XLSX recebida. O diretório lê as abas, preserva o histórico e mantém PME separado dos leads do RD Station.</p></div><button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={16}/>Selecionar planilha</button></section>}
 
         {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros preservados</span><span><strong>{preview.sourceSheets.length}</strong> abas lidas</span><span><strong>100%</strong> linhas com conteúdo</span></div><p>Linhas vazias usadas somente pela formatação da planilha não entram na contagem. Todo registro com conteúdo fica preservado com a aba e a linha de origem; empresas repetidas serão agrupadas apenas na visualização.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
+        {deleteTarget && <div className="pme-import-backdrop" role="presentation">
+          <section aria-labelledby="pme-delete-title" aria-modal="true" className="pme-import-modal pme-delete-modal" role="dialog">
+            <header>
+              <div><p className="eyebrow">EXCLUSÃO PERMANENTE</p><h2 id="pme-delete-title">Remover {deleteTarget.fileName}?</h2></div>
+              <button aria-label="Cancelar exclusão" disabled={deletingBatch} onClick={() => setDeleteTarget(null)} type="button"><X size={18}/></button>
+            </header>
+            <p>
+              Esta ação apagará permanentemente os <strong>{deleteTarget.importedRows} registros</strong> importados por esta planilha,
+              os agrupamentos formados por eles e as preferências de ordem relacionadas. As outras planilhas não serão alteradas.
+            </p>
+            <footer>
+              <button className="tutorial-button" disabled={deletingBatch} onClick={() => setDeleteTarget(null)} type="button">Cancelar</button>
+              <button className="pme-danger-button" disabled={deletingBatch} onClick={() => void removeImportBatch()} type="button">
+                <Trash2 size={15}/>{deletingBatch ? "Removendo..." : "Remover definitivamente"}
+              </button>
+            </footer>
+          </section>
+        </div>}
         {selectedCompany && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-records-modal" role="dialog"><header><div><p className="eyebrow">HISTÓRICO PME</p><h2>{selectedCompany.companyName}</h2><p>{selectedCompany.contacts || "Contato não informado"}{selectedCompany.phones ? ` · ${selectedCompany.phones}` : ""}</p></div><button aria-label="Fechar histórico" onClick={() => setSelectedCompany(null)} type="button"><X size={18}/></button></header><div className="pme-records-body">{selectedCompany.website && <a className="pme-profile-link" href={selectedCompany.website} rel="noreferrer" target="_blank"><ExternalLink size={15}/>Abrir perfil da empresa</a>}<p className="pme-records-intro">Cada item abaixo é uma linha original da planilha, mantida com a aba e a posição de onde veio.</p>{selectedCompany.records.map((record) => <article key={record.id} className="pme-source-record"><header><div><strong>{record.sourceSheet}</strong><span>Linha {record.sourceRow} · {record.category}</span></div><span>{formatDate(record.contactAt ?? record.displayedAt ?? record.recordedAt)}</span></header><dl><div><dt>Contato</dt><dd>{record.contactName || "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{record.phone || "Não informado"}</dd></div><div><dt>Situação</dt><dd>{record.historicStatus || "Sem situação registrada"}</dd></div><div><dt>Valor</dt><dd>{formatCurrency(record.historicValue)}</dd></div></dl>{record.notes && <p className="pme-source-notes">{record.notes}</p>}</article>)}</div><footer><button className="tutorial-button" onClick={() => setSelectedCompany(null)} type="button">Fechar</button></footer></section></div>}
         {selectedBatch && <div className="pme-import-backdrop" role="presentation">
           <section aria-modal="true" className="pme-records-modal" role="dialog">

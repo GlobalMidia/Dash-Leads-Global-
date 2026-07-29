@@ -198,6 +198,51 @@ export async function savePmeImportBatchOrder(userId: string, batchIds: string[]
   ]);
 }
 
+export async function deletePmeImportBatch(
+  batchId: string,
+  actor: { userId: string; email: string; name: string },
+) {
+  if (!isLiveMode()) throw new Error("Configure o banco antes de remover a planilha PME.");
+  const sql = getSql();
+  const rows = (await sql`
+    WITH deleted AS (
+      DELETE FROM pme_import_batches
+      WHERE id = ${batchId}::uuid
+      RETURNING id::text, file_name, imported_rows
+    ),
+    audit_entry AS (
+      INSERT INTO audit_log (
+        actor_user_id, actor_email, action, entity_type, entity_id, metadata
+      )
+      SELECT
+        ${actor.userId}::uuid,
+        ${actor.email},
+        'pme.import_deleted',
+        'pme_import',
+        deleted.id,
+        jsonb_build_object(
+          'title', 'Planilha PME removida',
+          'description', deleted.imported_rows::text || ' registros foram removidos do diretório PME.',
+          'actorName', ${actor.name || actor.email}::text,
+          'fileName', deleted.file_name,
+          'deletedRecords', deleted.imported_rows
+        )
+      FROM deleted
+      RETURNING entity_id
+    )
+    SELECT deleted.id, deleted.file_name, deleted.imported_rows
+    FROM deleted
+    INNER JOIN audit_entry ON audit_entry.entity_id = deleted.id
+  `) as Row[];
+  const deleted = rows[0];
+
+  return deleted ? {
+    id: String(deleted.id),
+    fileName: String(deleted.file_name),
+    deletedRecords: Number(deleted.imported_rows ?? 0),
+  } : null;
+}
+
 export async function getPmeCompanyDetails(normalizedCompany: string): Promise<PmeCompanyDetails | null> {
   if (!isLiveMode()) return null;
   const sql = getSql();
