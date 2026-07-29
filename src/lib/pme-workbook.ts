@@ -1,13 +1,34 @@
-import { strFromU8, unzipSync } from "fflate";
 import type { PmeImportRecord } from "@/types/pme";
 
 type SheetRows = Array<Array<string>>;
+type SpreadsheetExtension = "csv" | "ods" | "xls" | "xlsx";
+const MAX_IMPORT_COLUMNS = 200;
 
 export type PmeWorkbookPreview = {
   records: PmeImportRecord[];
   ignoredRows: number;
   sourceSheets: string[];
 };
+
+export const PME_SPREADSHEET_ACCEPT = [
+  ".csv",
+  ".ods",
+  ".xls",
+  ".xlsx",
+  "application/vnd.ms-excel",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv",
+].join(",");
+
+const SUPPORTED_EXTENSIONS = new Set<SpreadsheetExtension>(["csv", "ods", "xls", "xlsx"]);
+
+export function pmeSpreadsheetExtension(fileName: string): SpreadsheetExtension | null {
+  const extension = fileName.split(".").pop()?.toLocaleLowerCase("pt-BR") ?? "";
+  return SUPPORTED_EXTENSIONS.has(extension as SpreadsheetExtension)
+    ? extension as SpreadsheetExtension
+    : null;
+}
 
 function normalized(value: string) {
   return value
@@ -23,66 +44,84 @@ function text(value: unknown) {
   return result === "-" ? "" : result;
 }
 
-function columnIndex(reference = "") {
-  const letters = reference.match(/[A-Z]+/i)?.[0]?.toUpperCase() ?? "A";
-  return [...letters].reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1;
-}
+async function workbookSheets(
+  buffer: ArrayBuffer,
+  fileName: string,
+): Promise<Array<{ name: string; rows: SheetRows }>> {
+  const extension = pmeSpreadsheetExtension(fileName);
+  if (!extension) {
+    throw new Error("Formato não suportado. Use CSV, XLS, XLSX ou ODS.");
+  }
 
-function sheetDocument(file: Uint8Array) {
-  return new DOMParser().parseFromString(strFromU8(file), "application/xml");
-}
-
-function sharedStrings(files: Record<string, Uint8Array>) {
-  const content = files["xl/sharedStrings.xml"];
-  if (!content) return [];
-  const document = sheetDocument(content);
-  return [...document.getElementsByTagName("si")].map((item) =>
-    [...item.getElementsByTagName("t")].map((node) => node.textContent ?? "").join(""),
-  );
-}
-
-function worksheetRows(file: Uint8Array, shared: string[]): SheetRows {
-  const document = sheetDocument(file);
-  return [...document.getElementsByTagName("row")].map((row) => {
-    const values: string[] = [];
-    for (const cell of [...row.getElementsByTagName("c")]) {
-      const index = columnIndex(cell.getAttribute("r") ?? "");
-      const kind = cell.getAttribute("t");
-      const valueNode = cell.getElementsByTagName("v")[0];
-      const inline = [...cell.getElementsByTagName("t")]
-        .map((node) => node.textContent ?? "")
-        .join("");
-      const raw = valueNode?.textContent ?? inline;
-      values[index] = kind === "s" ? shared[Number(raw)] ?? "" : raw;
-    }
-    return values.map(text);
+  const { read, utils } = await import("xlsx");
+  let input: ArrayBuffer | string = buffer;
+  let inputType: "array" | "string" = "array";
+  if (extension === "csv") {
+    const utf8 = new TextDecoder("utf-8").decode(buffer);
+    input = utf8.includes("\uFFFD")
+      ? new TextDecoder("windows-1252").decode(buffer)
+      : utf8;
+    inputType = "string";
+  }
+  const workbook = read(input, {
+    cellDates: false,
+    cellFormula: true,
+    cellNF: false,
+    cellStyles: false,
+    type: inputType,
   });
-}
 
-function workbookSheets(buffer: ArrayBuffer): Array<{ name: string; rows: SheetRows }> {
-  const files = unzipSync(new Uint8Array(buffer));
-  const workbookFile = files["xl/workbook.xml"];
-  const relationsFile = files["xl/_rels/workbook.xml.rels"];
-  if (!workbookFile || !relationsFile) throw new Error("O arquivo não possui a estrutura esperada de uma planilha XLSX.");
+  return workbook.SheetNames.flatMap((originalName, sheetIndex) => {
+    const worksheet = workbook.Sheets[originalName];
+    if (!worksheet) return [];
 
-  const workbook = sheetDocument(workbookFile);
-  const relations = sheetDocument(relationsFile);
-  const targets = new Map(
-    [...relations.getElementsByTagName("Relationship")].map((relation) => [
-      relation.getAttribute("Id") ?? "",
-      relation.getAttribute("Target") ?? "",
-    ]),
-  );
-  const shared = sharedStrings(files);
+    const populatedCells = Object.entries(worksheet)
+      .filter(([reference, cell]) => {
+        if (reference.startsWith("!") || !cell || typeof cell !== "object") return false;
+        const value = "v" in cell ? cell.v : undefined;
+        const formula = "f" in cell ? cell.f : undefined;
+        return Boolean(formula) || (
+          value !== undefined &&
+          value !== null &&
+          (typeof value !== "string" || value.trim().length > 0)
+        );
+      });
+    if (!populatedCells.length) return [];
 
-  return [...workbook.getElementsByTagName("sheet")].flatMap((sheet) => {
-    const relationshipId = sheet.getAttribute("r:id") ?? sheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") ?? "";
-    const target = targets.get(relationshipId);
-    if (!target) return [];
-    const path = `xl/${target.replace(/^\//, "").replace(/^xl\//, "")}`;
-    const content = files[path];
-    if (!content) return [];
-    return [{ name: sheet.getAttribute("name") ?? "Aba sem nome", rows: worksheetRows(content, shared) }];
+    const populatedRange = populatedCells.reduce((range, [reference]) => {
+      const cell = utils.decode_cell(reference);
+      return {
+        s: range.s,
+        e: {
+          r: Math.max(range.e.r, cell.r),
+          c: Math.max(range.e.c, Math.min(cell.c, MAX_IMPORT_COLUMNS - 1)),
+        },
+      };
+    }, {
+      s: { r: 0, c: 0 },
+      e: { r: 0, c: 0 },
+    });
+    const rawRows = utils.sheet_to_json<Array<unknown>>(worksheet, {
+      blankrows: true,
+      dateNF: "yyyy-mm-dd",
+      defval: "",
+      header: 1,
+      range: populatedRange,
+      raw: false,
+    });
+    const rows = rawRows.map((row) => {
+      const values = row.map(text);
+      let lastContentIndex = values.length - 1;
+      while (lastContentIndex >= 0 && !values[lastContentIndex]) lastContentIndex -= 1;
+      return values.slice(0, lastContentIndex + 1);
+    });
+
+    return [{
+      name: extension === "csv"
+        ? "Dados importados"
+        : originalName || `Aba ${sheetIndex + 1}`,
+      rows,
+    }];
   });
 }
 
@@ -93,6 +132,17 @@ function headerIndex(headers: string[], ...terms: string[]) {
     if (index >= 0) return index;
   }
   return -1;
+}
+
+function hasCompanyHeader(row: string[]) {
+  const knownHeaders = new Set([
+    "empresa",
+    "empresa cliente",
+    "empresas",
+    "nome da empresa",
+    "razao social",
+  ]);
+  return row.some((value) => knownHeaders.has(normalized(value)));
 }
 
 function valueAt(row: string[], index: number) {
@@ -150,11 +200,14 @@ function parseSheet(name: string, rows: SheetRows) {
   const sheetWithoutHeaders = normalized(name) === "planilha2";
   const headerRow = sheetWithoutHeaders
     ? -1
-    : rows.findIndex((row) => headerIndex(row, "empresa", "empresas") >= 0);
+    : rows.findIndex(hasCompanyHeader);
+  const hasRecognizedHeader = headerRow >= 0;
   const headers = sheetWithoutHeaders
     ? ["empresa", "telefone", "responsavel"]
-    : rows[Math.max(headerRow, 0)] ?? [];
-  const start = sheetWithoutHeaders ? 0 : Math.max(headerRow, 0) + 1;
+    : hasRecognizedHeader
+      ? rows[headerRow] ?? []
+      : [];
+  const start = sheetWithoutHeaders || !hasRecognizedHeader ? 0 : headerRow + 1;
   const companyIndex = headerIndex(headers, "empresa", "empresas");
   const phoneIndex = headerIndex(headers, "telefone", "contato");
   const contactIndex = headerIndex(headers, "responsavel", "nome");
@@ -217,8 +270,14 @@ function parseSheet(name: string, rows: SheetRows) {
   });
 }
 
-export function parsePmeWorkbook(buffer: ArrayBuffer): PmeWorkbookPreview {
-  const sheets = workbookSheets(buffer);
+export async function parsePmeWorkbook(
+  buffer: ArrayBuffer,
+  fileName: string,
+): Promise<PmeWorkbookPreview> {
+  const sheets = await workbookSheets(buffer, fileName);
+  if (!sheets.length) {
+    throw new Error("O arquivo não possui nenhuma linha preenchida.");
+  }
   const records = sheets.flatMap(({ name, rows }) => parseSheet(name, rows));
   return {
     records,

@@ -19,7 +19,12 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
-import { parsePmeWorkbook, type PmeWorkbookPreview } from "@/lib/pme-workbook";
+import {
+  parsePmeWorkbook,
+  PME_SPREADSHEET_ACCEPT,
+  pmeSpreadsheetExtension,
+  type PmeWorkbookPreview,
+} from "@/lib/pme-workbook";
 import type {
   PmeCompany,
   PmeCompanyDetails,
@@ -228,8 +233,8 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
 
   async function chooseFile(file?: File) {
     if (!file) return;
-    if (!file.name.toLocaleLowerCase("pt-BR").endsWith(".xlsx")) {
-      setNotice("Selecione uma planilha no formato XLSX.");
+    if (!pmeSpreadsheetExtension(file.name)) {
+      setNotice("Selecione uma planilha no formato CSV, XLS, XLSX ou ODS.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -238,7 +243,7 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
     }
     try {
       const buffer = await file.arrayBuffer();
-      const parsed = parsePmeWorkbook(buffer);
+      const parsed = await parsePmeWorkbook(buffer, file.name);
       if (!parsed.records.length) throw new Error("Nenhuma empresa reconhecível foi encontrada na planilha.");
       setPreview(parsed);
       setFileName(file.name);
@@ -329,7 +334,17 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
         <section className="pme-hero">
           <div><p className="eyebrow">BASE COMERCIAL SEPARADA</p><h1>PME / Reativação</h1><p className="hero-subtitle">Empresas que já participaram do PME e podem ser trabalhadas novamente pela agência.</p></div>
           <button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />Importar planilha</button>
-          <input accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(event) => void chooseFile(event.target.files?.[0])} ref={inputRef} type="file" />
+          <input
+            accept={PME_SPREADSHEET_ACCEPT}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              void chooseFile(file);
+            }}
+            ref={inputRef}
+            type="file"
+          />
         </section>
 
         <section className="pme-summary" aria-label="Resumo da base PME">
@@ -396,9 +411,9 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
               {(company.notes || company.website) && <footer>{company.notes && <p>{company.notes}</p>}{company.website && <a href={company.website} rel="noreferrer" target="_blank">Abrir perfil da empresa</a>}</footer>}
             </article>)}
           </section>
-        </> : <section className="pme-empty-card" aria-labelledby="pme-ready-title"><div className="pme-empty-icon"><FileSpreadsheet size={30} /></div><div><h2 id="pme-ready-title">Importe a base de reativação</h2><p>Selecione a planilha XLSX recebida. O diretório lê as abas, preserva o histórico e mantém PME separado dos leads do RD Station.</p></div><button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={16}/>Selecionar planilha</button></section>}
+        </> : <section className="pme-empty-card" aria-labelledby="pme-ready-title"><div className="pme-empty-icon"><FileSpreadsheet size={30} /></div><div><h2 id="pme-ready-title">Importe a base de reativação</h2><p>Selecione um arquivo CSV, XLS, XLSX ou ODS. O diretório lê as abas disponíveis, preserva o histórico e mantém PME separado dos leads do RD Station.</p></div><button className="sync-button" onClick={() => inputRef.current?.click()} type="button"><Upload size={16}/>Selecionar planilha</button></section>}
 
-        {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros preservados</span><span><strong>{preview.sourceSheets.length}</strong> abas lidas</span><span><strong>100%</strong> linhas com conteúdo</span></div><p>Linhas vazias usadas somente pela formatação da planilha não entram na contagem. Todo registro com conteúdo fica preservado com a aba e a linha de origem; empresas repetidas serão agrupadas apenas na visualização.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
+        {preview && <div className="pme-import-backdrop" role="presentation"><section aria-modal="true" className="pme-import-modal" role="dialog"><header><div><p className="eyebrow">PRÉVIA DA IMPORTAÇÃO</p><h2>{fileName}</h2></div><button aria-label="Fechar prévia" onClick={() => setPreview(null)} type="button"><X size={18}/></button></header><div className="pme-import-stats"><span><strong>{preview.records.length}</strong> registros preservados</span><span><strong>{preview.sourceSheets.length}</strong> {preview.sourceSheets.length === 1 ? "aba lida" : "abas lidas"}</span><span><strong>100%</strong> linhas com conteúdo</span></div><p>Linhas vazias usadas somente pela formatação não entram na contagem. Todo registro com conteúdo fica preservado com a aba e a linha de origem; no CSV, os dados aparecem em uma única aba. Empresas repetidas serão agrupadas apenas na visualização.</p><footer><button className="tutorial-button" onClick={() => setPreview(null)} type="button">Cancelar</button><button className="sync-button" disabled={importing} onClick={() => void importPreview()} type="button">{importing ? "Importando..." : "Confirmar importação"}</button></footer></section></div>}
         {deleteTarget && <div className="pme-import-backdrop" role="presentation">
           <section aria-labelledby="pme-delete-title" aria-modal="true" className="pme-import-modal pme-delete-modal" role="dialog">
             <header>
