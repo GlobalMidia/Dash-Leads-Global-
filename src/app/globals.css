@@ -1393,6 +1393,89 @@ td {
   font-weight: 650;
 }
 
+.meta-connection-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid #cfe2fb;
+  border-radius: 12px;
+  color: #28476f;
+  background: #f7fbff;
+  padding: 11px 13px;
+}
+
+.meta-connection-card.requires-reconnect {
+  border-color: #f4d598;
+  background: #fffaf0;
+}
+
+.meta-connection-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  color: #2f7df4;
+  background: #eaf3ff;
+}
+
+.meta-connection-card > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.meta-connection-card strong {
+  display: block;
+  font-size: 12px;
+}
+
+.meta-connection-card p {
+  margin: 2px 0 0;
+  color: #6f7f95;
+  font-size: 11px;
+}
+
+.meta-connection-action {
+  display: inline-flex;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #b8d3fb;
+  border-radius: 9px;
+  color: #276bcf;
+  background: #fff;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.meta-connection-action:hover {
+  border-color: #78a9f3;
+  background: #eff6ff;
+}
+
+.meta-connection-card > span {
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.meta-connection-card > span.connected {
+  color: #19866c;
+  background: #e7f8f2;
+}
+
+.meta-connection-card > span.pending {
+  color: #7b8799;
+  background: #edf1f6;
+}
+
 .origin-select {
   display: inline-flex;
   align-items: center;
@@ -4374,6 +4457,7 @@ td {
 
 .dashboard-shell[data-theme="dark"] :is(
     .setup-note,
+    .meta-connection-card,
     .domain-rule,
     .import-guidance,
     .import-review-note
@@ -4381,6 +4465,21 @@ td {
   border-color: #29486f;
   color: #b9d5f7;
   background: #112640;
+}
+
+.dashboard-shell[data-theme="dark"] .meta-connection-icon {
+  color: #84b8ff;
+  background: #193a62;
+}
+
+.dashboard-shell[data-theme="dark"] .meta-connection-card p {
+  color: #99aecb;
+}
+
+.dashboard-shell[data-theme="dark"] .meta-connection-action {
+  border-color: #335c8b;
+  color: #acd0ff;
+  background: #152b48;
 }
 
 .dashboard-shell[data-theme="dark"] .details-backdrop,
@@ -4713,6 +4812,15 @@ td {
 
   .setup-note {
     align-items: flex-start;
+  }
+
+  .meta-connection-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .meta-connection-card > span {
+    display: none;
   }
 
   .setup-note p {
