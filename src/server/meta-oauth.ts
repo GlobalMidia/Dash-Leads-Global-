@@ -164,6 +164,9 @@ export async function exchangeAuthorizationCode(code: string, origin: string) {
   longLivedUrl.searchParams.set("client_secret", required("META_APP_SECRET"));
   longLivedUrl.searchParams.set("fb_exchange_token", initial.access_token!);
   const longLived = await exchangeToken(longLivedUrl);
+  if (!longLived.access_token) {
+    throw new Error("Meta Ads não retornou o token de longa duração.");
+  }
   return {
     accessToken: longLived.access_token,
     expiresAt: longLived.expires_in
