@@ -128,6 +128,53 @@ export function isValidState(received: string | null, expected: string | undefin
   );
 }
 
+/**
+ * The dashboard session cookie may be `SameSite=Strict`, which correctly keeps it
+ * out of the cross-site redirect made by Meta.  This short lived, signed context
+ * lets the callback retain the manager that started the authorization without
+ * weakening the dashboard session cookie.
+ */
+export function createMetaConnectionActor(state: string, email: string) {
+  const payload = Buffer.from(JSON.stringify({
+    email: email.trim().toLowerCase(),
+    state,
+  })).toString("base64url");
+  const signature = createHmac("sha256", required("META_OAUTH_STATE_SECRET"))
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+export function getMetaConnectionActor(value: string | undefined, state: string | null) {
+  if (!value || !state) return null;
+  const separator = value.lastIndexOf(".");
+  if (separator <= 0) return null;
+
+  const payload = value.slice(0, separator);
+  const receivedSignature = value.slice(separator + 1);
+  const expectedSignature = createHmac("sha256", required("META_OAUTH_STATE_SECRET"))
+    .update(payload)
+    .digest("base64url");
+  const receivedBuffer = Buffer.from(receivedSignature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (receivedBuffer.length !== expectedBuffer.length || !timingSafeEqual(receivedBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    const context = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      email?: unknown;
+      state?: unknown;
+    };
+    if (typeof context.email !== "string" || context.state !== state || !canManageMetaConnection(context.email)) {
+      return null;
+    }
+    return context.email;
+  } catch {
+    return null;
+  }
+}
+
 export function authorizationUrl(origin: string, state: string) {
   const url = new URL(`${META_OAUTH_BASE}/${version()}/dialog/oauth`);
   url.searchParams.set("client_id", required("META_APP_ID"));
