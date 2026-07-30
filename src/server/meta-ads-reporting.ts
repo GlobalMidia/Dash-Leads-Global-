@@ -2,254 +2,137 @@ import "server-only";
 
 import { getSql } from "@/server/db";
 import { getMetaConnectionForReporting, type StoredMetaAdAccount } from "@/server/meta-oauth";
-import type { MetaAdsAccount, MetaAdsDashboardData } from "@/types/meta-ads";
+import type { MetaAdsAccount, MetaAdsCampaign, MetaAdsDashboardData, MetaAdsPeriod } from "@/types/meta-ads";
 
 const META_GRAPH_BASE = "https://graph.facebook.com";
 
 type SnapshotRow = {
-  account_id: string;
-  account_name: string;
-  account_number: string;
-  currency: string;
-  account_status: number | null;
-  selected: boolean;
-  spend: string | number | null;
-  impressions: string | number | null;
-  clicks: string | number | null;
-  reach: string | number | null;
-  leads: string | number | null;
-  campaign_count: string | number | null;
-  synced_at: Date | string | null;
-  sync_error: string | null;
+  account_id: string; account_name: string; account_number: string; currency: string; account_status: number | null; selected: boolean;
+  spend: string | number | null; impressions: string | number | null; clicks: string | number | null; reach: string | number | null;
+  leads: string | number | null; campaign_count: string | number | null; campaigns: unknown; synced_at: Date | string | null; sync_error: string | null;
 };
+type MetaInsight = { campaign_id?: string; campaign_name?: string; spend?: string; impressions?: string; clicks?: string; reach?: string; ctr?: string; cpc?: string; actions?: Array<{ action_type?: string; value?: string }> };
+type MetaCampaign = { id?: string; name?: string; status?: string; objective?: string };
+type MetaResponse<T> = { data?: T[] };
 
-function apiVersion() {
-  return process.env.META_GRAPH_API_VERSION || "v25.0";
+export function defaultMetaAdsPeriod(): MetaAdsPeriod {
+  const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - 29);
+  return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
 }
 
-function number(value: string | number | null | undefined) {
-  const result = Number(value ?? 0);
-  return Number.isFinite(result) ? result : 0;
+export function validMetaAdsPeriod(input: Partial<MetaAdsPeriod>): MetaAdsPeriod {
+  const fallback = defaultMetaAdsPeriod();
+  const startDate = input.startDate && /^\d{4}-\d{2}-\d{2}$/.test(input.startDate) ? input.startDate : fallback.startDate;
+  const endDate = input.endDate && /^\d{4}-\d{2}-\d{2}$/.test(input.endDate) ? input.endDate : fallback.endDate;
+  const start = Date.parse(`${startDate}T00:00:00.000Z`); const end = Date.parse(`${endDate}T00:00:00.000Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || end - start > 366 * 86400000) throw new Error("Selecione um período válido de até 366 dias.");
+  return { startDate, endDate };
 }
 
-function toAccount(row: SnapshotRow): MetaAdsAccount {
-  return {
-    id: row.account_id,
-    accountId: row.account_number,
-    name: row.account_name || "Conta sem nome",
-    currency: row.currency,
-    status: row.account_status,
-    selected: row.selected,
-    spend: number(row.spend),
-    impressions: number(row.impressions),
-    clicks: number(row.clicks),
-    reach: number(row.reach),
-    leads: number(row.leads),
-    campaignCount: number(row.campaign_count),
-    syncedAt: row.synced_at ? new Date(row.synced_at).toISOString() : null,
-    syncError: row.sync_error,
-  };
+function apiVersion() { return process.env.META_GRAPH_API_VERSION || "v25.0"; }
+function numeric(value: string | number | null | undefined) { const result = Number(value ?? 0); return Number.isFinite(result) ? result : 0; }
+function leadCount(actions: MetaInsight["actions"]) { return (actions ?? []).reduce((total, action) => total + (action.action_type?.toLowerCase().includes("lead") ? numeric(action.value) : 0), 0); }
+
+function campaigns(value: unknown): MetaAdsCampaign[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    if (typeof row.id !== "string") return [];
+    return [{ id: row.id, name: typeof row.name === "string" ? row.name : "Campanha sem nome", status: typeof row.status === "string" ? row.status : "UNKNOWN", objective: typeof row.objective === "string" ? row.objective : "", spend: numeric(row.spend as string | number), impressions: numeric(row.impressions as string | number), clicks: numeric(row.clicks as string | number), reach: numeric(row.reach as string | number), leads: numeric(row.leads as string | number), ctr: numeric(row.ctr as string | number), cpc: numeric(row.cpc as string | number) }];
+  });
 }
 
-async function selectionRows() {
+function account(row: SnapshotRow): MetaAdsAccount {
+  return { id: row.account_id, accountId: row.account_number, name: row.account_name || "Conta sem nome", currency: row.currency, status: row.account_status, selected: row.selected, spend: numeric(row.spend), impressions: numeric(row.impressions), clicks: numeric(row.clicks), reach: numeric(row.reach), leads: numeric(row.leads), campaignCount: numeric(row.campaign_count), campaigns: campaigns(row.campaigns), syncedAt: row.synced_at ? new Date(row.synced_at).toISOString() : null, syncError: row.sync_error };
+}
+
+async function rows(period: MetaAdsPeriod) {
   const sql = getSql();
   return (await sql`
-    SELECT
-      selection.account_id,
-      selection.account_name,
-      selection.account_number,
-      selection.currency,
-      selection.account_status,
-      selection.selected,
-      snapshot.spend,
-      snapshot.impressions,
-      snapshot.clicks,
-      snapshot.reach,
-      snapshot.leads,
-      snapshot.campaign_count,
-      snapshot.synced_at,
-      snapshot.sync_error
+    SELECT selection.account_id, selection.account_name, selection.account_number, selection.currency, selection.account_status, selection.selected,
+      snapshot.spend, snapshot.impressions, snapshot.clicks, snapshot.reach, snapshot.leads, snapshot.campaign_count, snapshot.campaigns, snapshot.synced_at, snapshot.sync_error
     FROM meta_ads_account_selections selection
     LEFT JOIN LATERAL (
-      SELECT spend, impressions, clicks, reach, leads, campaign_count, synced_at, sync_error
+      SELECT spend, impressions, clicks, reach, leads, campaign_count, campaigns, synced_at, sync_error
       FROM meta_ads_account_snapshots
-      WHERE account_id = selection.account_id
-      ORDER BY synced_at DESC
-      LIMIT 1
+      WHERE account_id = selection.account_id AND period_start = ${period.startDate}::date AND period_end = ${period.endDate}::date
+      ORDER BY synced_at DESC LIMIT 1
     ) snapshot ON true
-    ORDER BY selection.selected DESC, selection.account_name ASC
+    ORDER BY selection.account_name ASC
   `) as SnapshotRow[];
 }
 
-export async function getMetaAdsDashboardData(): Promise<MetaAdsDashboardData> {
-  const connection = await getMetaConnectionForReporting();
-  if (!connection) return { connected: false, accountName: null, accounts: [], selectedCount: 0, lastSyncAt: null };
-
-  const selections = await selectionRows();
-  const byId = new Map(selections.map((selection) => [selection.account_id, selection]));
-  const accounts = connection.accounts.map((account) => {
-    const selection = byId.get(account.id);
-    return toAccount(selection ?? {
-      account_id: account.id,
-      account_name: account.name,
-      account_number: account.accountId,
-      currency: account.currency,
-      account_status: account.status,
-      selected: false,
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      reach: 0,
-      leads: 0,
-      campaign_count: 0,
-      synced_at: null,
-      sync_error: null,
-    });
-  }).sort((left, right) => Number(right.selected) - Number(left.selected) || left.name.localeCompare(right.name, "pt-BR"));
-  const selectedCount = accounts.filter((account) => account.selected).length;
-  const lastSync = accounts
-    .map((account) => account.syncedAt ? new Date(account.syncedAt).getTime() : 0)
-    .reduce((latest, value) => Math.max(latest, value), 0);
-  return {
-    connected: true,
-    accountName: null,
-    accounts,
-    selectedCount,
-    lastSyncAt: lastSync ? new Date(lastSync).toISOString() : null,
-  };
+export async function getMetaAdsDashboardData(input: Partial<MetaAdsPeriod> = {}): Promise<MetaAdsDashboardData> {
+  const period = validMetaAdsPeriod(input); const connection = await getMetaConnectionForReporting();
+  if (!connection) return { connected: false, accountName: null, accounts: [], selectedCount: 0, lastSyncAt: null, period };
+  const existing = new Map((await rows(period)).map((row) => [row.account_id, row]));
+  const all = connection.accounts.map((stored) => account(existing.get(stored.id) ?? { account_id: stored.id, account_name: stored.name, account_number: stored.accountId, currency: stored.currency, account_status: stored.status, selected: true, spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, campaign_count: 0, campaigns: [], synced_at: null, sync_error: null })).sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  const latest = all.reduce((result, item) => Math.max(result, item.syncedAt ? Date.parse(item.syncedAt) : 0), 0);
+  return { connected: true, accountName: null, accounts: all, selectedCount: all.length, lastSyncAt: latest ? new Date(latest).toISOString() : null, period };
 }
 
 export async function saveMetaAdsSelections(accountIds: string[], actorEmail: string) {
-  const connection = await getMetaConnectionForReporting();
-  if (!connection) throw new Error("Conecte a conta corporativa da Meta antes de selecionar contas.");
-  const selected = new Set(accountIds);
-  const available = new Map(connection.accounts.map((account) => [account.id, account]));
-  for (const accountId of selected) {
-    if (!available.has(accountId)) throw new Error("Uma das contas selecionadas não pertence à conexão corporativa atual.");
-  }
-
+  const connection = await getMetaConnectionForReporting(); if (!connection) throw new Error("Conecte a conta corporativa da Meta antes de continuar.");
+  const selected = new Set(accountIds); const available = new Set(connection.accounts.map((item) => item.id));
+  if ([...selected].some((id) => !available.has(id))) throw new Error("Uma das contas não pertence à conexão corporativa atual.");
   const sql = getSql();
-  await Promise.all(connection.accounts.map((account) => sql`
-    INSERT INTO meta_ads_account_selections (
-      account_id, account_name, account_number, currency, account_status,
-      selected, selected_by_email, selected_at, updated_at
-    ) VALUES (
-      ${account.id}, ${account.name}, ${account.accountId}, ${account.currency}, ${account.status},
-      ${selected.has(account.id)}, ${actorEmail}, ${selected.has(account.id) ? new Date() : null}, NOW()
-    )
-    ON CONFLICT (account_id) DO UPDATE SET
-      account_name = EXCLUDED.account_name,
-      account_number = EXCLUDED.account_number,
-      currency = EXCLUDED.currency,
-      account_status = EXCLUDED.account_status,
-      selected = EXCLUDED.selected,
-      selected_by_email = EXCLUDED.selected_by_email,
-      selected_at = CASE WHEN EXCLUDED.selected THEN NOW() ELSE NULL END,
-      updated_at = NOW()
+  await Promise.all(connection.accounts.map((item) => sql`
+    INSERT INTO meta_ads_account_selections (account_id, account_name, account_number, currency, account_status, selected, selected_by_email, selected_at, updated_at)
+    VALUES (${item.id}, ${item.name}, ${item.accountId}, ${item.currency}, ${item.status}, ${selected.has(item.id)}, ${actorEmail}, ${selected.has(item.id) ? new Date() : null}, NOW())
+    ON CONFLICT (account_id) DO UPDATE SET account_name = EXCLUDED.account_name, account_number = EXCLUDED.account_number, currency = EXCLUDED.currency, account_status = EXCLUDED.account_status, selected = EXCLUDED.selected, selected_by_email = EXCLUDED.selected_by_email, selected_at = CASE WHEN EXCLUDED.selected THEN NOW() ELSE NULL END, updated_at = NOW()
   `));
   return getMetaAdsDashboardData();
 }
 
-type MetaInsight = {
-  spend?: string;
-  impressions?: string;
-  clicks?: string;
-  reach?: string;
-  actions?: Array<{ action_type?: string; value?: string }>;
-};
-
-type MetaResponse<T> = { data?: T[] };
-type MetaCampaign = { id?: string; name?: string; status?: string; objective?: string; updated_time?: string };
-
-async function getMetaJson<T>(url: URL): Promise<T> {
+async function metaJson<T>(url: URL) {
   const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Meta Ads recusou a sincronização (${response.status})${details ? `: ${details.slice(0, 180)}` : ""}`);
-  }
+  if (!response.ok) { const detail = await response.text(); throw new Error(`Meta Ads recusou a sincronização (${response.status})${detail ? `: ${detail.slice(0, 180)}` : ""}`); }
   return (await response.json()) as T;
 }
 
-function countLeads(actions: MetaInsight["actions"]) {
-  return (actions ?? []).reduce((total, action) => {
-    const type = action.action_type?.toLowerCase() ?? "";
-    return type.includes("lead") ? total + number(action.value) : total;
-  }, 0);
-}
-
-async function syncAccount(account: StoredMetaAdAccount, accessToken: string) {
+async function syncOne(account: StoredMetaAdAccount, accessToken: string, period: MetaAdsPeriod) {
   const root = `${META_GRAPH_BASE}/${apiVersion()}/${encodeURIComponent(account.id)}`;
-  const insightsUrl = new URL(`${root}/insights`);
-  insightsUrl.searchParams.set("fields", "spend,impressions,clicks,reach,actions");
-  insightsUrl.searchParams.set("date_preset", "last_30d");
-  insightsUrl.searchParams.set("level", "account");
-  insightsUrl.searchParams.set("limit", "1");
-  insightsUrl.searchParams.set("access_token", accessToken);
-
-  const campaignsUrl = new URL(`${root}/campaigns`);
-  campaignsUrl.searchParams.set("fields", "id,name,status,objective,updated_time");
-  campaignsUrl.searchParams.set("limit", "250");
-  campaignsUrl.searchParams.set("access_token", accessToken);
-
-  const [insightsResponse, campaignsResponse] = await Promise.all([
-    getMetaJson<MetaResponse<MetaInsight>>(insightsUrl),
-    getMetaJson<MetaResponse<MetaCampaign>>(campaignsUrl),
-  ]);
-  const insight = insightsResponse.data?.[0] ?? {};
-  return {
-    spend: number(insight.spend),
-    impressions: number(insight.impressions),
-    clicks: number(insight.clicks),
-    reach: number(insight.reach),
-    leads: countLeads(insight.actions),
-    campaigns: campaignsResponse.data ?? [],
+  const createInsightsUrl = (level: "account" | "campaign") => {
+    const url = new URL(`${root}/insights`);
+    url.searchParams.set("fields", level === "account" ? "spend,impressions,clicks,reach,actions" : "campaign_id,campaign_name,spend,impressions,clicks,reach,actions,ctr,cpc");
+    url.searchParams.set("time_range", JSON.stringify({ since: period.startDate, until: period.endDate })); url.searchParams.set("level", level); url.searchParams.set("limit", "500"); url.searchParams.set("access_token", accessToken); return url;
   };
+  const campaignsUrl = new URL(`${root}/campaigns`); campaignsUrl.searchParams.set("fields", "id,name,status,objective"); campaignsUrl.searchParams.set("limit", "250"); campaignsUrl.searchParams.set("access_token", accessToken);
+  const [overview, metadata, details] = await Promise.all([metaJson<MetaResponse<MetaInsight>>(createInsightsUrl("account")), metaJson<MetaResponse<MetaCampaign>>(campaignsUrl), metaJson<MetaResponse<MetaInsight>>(createInsightsUrl("campaign"))]);
+  const byId = new Map((metadata.data ?? []).flatMap((item) => item.id ? [[item.id, item]] : []));
+  const campaignData: MetaAdsCampaign[] = (details.data ?? []).flatMap((item) => {
+    if (!item.campaign_id) return []; const meta = byId.get(item.campaign_id);
+    return [{ id: item.campaign_id, name: item.campaign_name || meta?.name || "Campanha sem nome", status: meta?.status || "UNKNOWN", objective: meta?.objective || "", spend: numeric(item.spend), impressions: numeric(item.impressions), clicks: numeric(item.clicks), reach: numeric(item.reach), leads: leadCount(item.actions), ctr: numeric(item.ctr), cpc: numeric(item.cpc) }];
+  }).sort((a, b) => b.spend - a.spend);
+  const total = overview.data?.[0] ?? {};
+  return { spend: numeric(total.spend), impressions: numeric(total.impressions), clicks: numeric(total.clicks), reach: numeric(total.reach), leads: leadCount(total.actions), campaigns: campaignData };
 }
 
-export async function syncSelectedMetaAdsAccounts() {
-  const connection = await getMetaConnectionForReporting();
+export async function syncMetaAdsAccounts(input: Partial<MetaAdsPeriod> = {}) {
+  const period = validMetaAdsPeriod(input); const connection = await getMetaConnectionForReporting();
   if (!connection) throw new Error("A conta corporativa do Meta Ads não está conectada.");
-  const rows = await selectionRows();
-  const available = new Map(connection.accounts.map((account) => [account.id, account]));
-  const selected = rows.filter((row) => row.selected).flatMap((row) => available.get(row.account_id) ?? []);
-  if (!selected.length) throw new Error("Selecione pelo menos uma conta de anúncios para sincronizar.");
-
-  const sql = getSql();
-  const periodEnd = new Date();
-  const periodStart = new Date(periodEnd);
-  periodStart.setDate(periodEnd.getDate() - 29);
-  const start = periodStart.toISOString().slice(0, 10);
-  const end = periodEnd.toISOString().slice(0, 10);
-  let synced = 0;
-  const failed: string[] = [];
-
-  for (const account of selected) {
+  await saveMetaAdsSelections(connection.accounts.map((item) => item.id), "sistema");
+  const sql = getSql(); let synced = 0; const failed: string[] = [];
+  const queue = [...connection.accounts];
+  const runWorker = async () => {
+    let item = queue.shift();
+    while (item) {
     try {
-      const snapshot = await syncAccount(account, connection.accessToken);
+      const result = await syncOne(item, connection.accessToken, period);
       await sql`
-        INSERT INTO meta_ads_account_snapshots (
-          account_id, period_start, period_end, spend, impressions, clicks, reach, leads,
-          campaign_count, campaigns, sync_error, synced_at
-        ) VALUES (
-          ${account.id}, ${start}, ${end}, ${snapshot.spend}, ${snapshot.impressions}, ${snapshot.clicks}, ${snapshot.reach}, ${snapshot.leads},
-          ${snapshot.campaigns.length}, ${JSON.stringify(snapshot.campaigns)}::jsonb, NULL, NOW()
-        )
-        ON CONFLICT (account_id, period_start, period_end) DO UPDATE SET
-          spend = EXCLUDED.spend, impressions = EXCLUDED.impressions, clicks = EXCLUDED.clicks,
-          reach = EXCLUDED.reach, leads = EXCLUDED.leads, campaign_count = EXCLUDED.campaign_count,
-          campaigns = EXCLUDED.campaigns, sync_error = NULL, synced_at = NOW()
-      `;
-      synced += 1;
+        INSERT INTO meta_ads_account_snapshots (account_id, period_start, period_end, spend, impressions, clicks, reach, leads, campaign_count, campaigns, sync_error, synced_at)
+        VALUES (${item.id}, ${period.startDate}, ${period.endDate}, ${result.spend}, ${result.impressions}, ${result.clicks}, ${result.reach}, ${result.leads}, ${result.campaigns.length}, ${JSON.stringify(result.campaigns)}::jsonb, NULL, NOW())
+        ON CONFLICT (account_id, period_start, period_end) DO UPDATE SET spend = EXCLUDED.spend, impressions = EXCLUDED.impressions, clicks = EXCLUDED.clicks, reach = EXCLUDED.reach, leads = EXCLUDED.leads, campaign_count = EXCLUDED.campaign_count, campaigns = EXCLUDED.campaigns, sync_error = NULL, synced_at = NOW()
+      `; synced += 1;
     } catch (error) {
-      const message = error instanceof Error ? error.message.slice(0, 900) : "Falha desconhecida ao consultar a conta.";
-      failed.push(account.name);
-      await sql`
-        INSERT INTO meta_ads_account_snapshots (account_id, period_start, period_end, sync_error, synced_at)
-        VALUES (${account.id}, ${start}, ${end}, ${message}, NOW())
-        ON CONFLICT (account_id, period_start, period_end) DO UPDATE SET sync_error = EXCLUDED.sync_error, synced_at = NOW()
-      `;
+      const message = error instanceof Error ? error.message.slice(0, 900) : "Falha desconhecida ao consultar a conta."; failed.push(item.name);
+      await sql`INSERT INTO meta_ads_account_snapshots (account_id, period_start, period_end, sync_error, synced_at) VALUES (${item.id}, ${period.startDate}, ${period.endDate}, ${message}, NOW()) ON CONFLICT (account_id, period_start, period_end) DO UPDATE SET sync_error = EXCLUDED.sync_error, synced_at = NOW()`;
     }
-  }
-
-  return { synced, failed, data: await getMetaAdsDashboardData() };
+      item = queue.shift();
+    }
+  };
+  // Três contas por vez mantém a resposta rápida sem criar um pico de chamadas na API da Meta.
+  await Promise.all(Array.from({ length: Math.min(3, connection.accounts.length) }, runWorker));
+  return { synced, failed, data: await getMetaAdsDashboardData(period) };
 }
