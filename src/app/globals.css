@@ -1479,6 +1479,7 @@ td {
 
 .meta-ads-main { max-width: 1240px; padding-bottom: 48px; }
 .meta-ads-hero { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:20px; }
+.meta-ads-hero-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
 .meta-ads-hero h1 { margin:5px 0 7px; font-size:32px; letter-spacing:-.05em; }
 .meta-ads-hero .hero-subtitle { max-width:620px; }
 .meta-ads-status,.meta-ads-empty,.meta-ads-accounts,.meta-ads-next { border:1px solid #dce7f5; border-radius:16px; background:#fff; box-shadow:0 8px 24px rgba(43,76,119,.05); }
@@ -5429,7 +5430,8 @@ td {
 
 @media (max-width: 760px) {
   .meta-ads-hero,.meta-ads-accounts > header { align-items:stretch; flex-direction:column; }
-  .meta-ads-hero .sync-button { width:100%; }
+  .meta-ads-hero .sync-button,.meta-ads-hero .meta-connection-action { width:100%; }
+  .meta-ads-hero-actions { width:100%; }
   .meta-ads-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .meta-ads-actions { flex-direction:column; align-items:stretch; }
   .meta-ads-actions label { min-width:0; }

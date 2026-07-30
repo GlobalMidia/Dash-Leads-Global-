@@ -42,7 +42,6 @@ import { ProfilePreferencesModal } from "@/components/profile-preferences-modal"
 import { QuickGuideModal } from "@/components/quick-guide-modal";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import { neonAuthClient } from "@/lib/neon-auth-client";
-import type { MetaConnectionStatus } from "@/server/meta-oauth";
 import { normalizeCompany } from "@/lib/lead-normalization";
 import { LEAD_ORIGINS } from "@/lib/lead-origin";
 import { leadsToCsv } from "@/lib/export-leads";
@@ -67,8 +66,6 @@ type DashboardProps = {
   rdConfigured: boolean;
   rdConnected: boolean;
   neonAuthEnabled: boolean;
-  metaConnection: MetaConnectionStatus | null;
-  canManageMetaConnection: boolean;
   user: {
     name: string;
     email: string;
@@ -374,8 +371,6 @@ export function LeadDashboard({
   rdConfigured,
   rdConnected,
   neonAuthEnabled,
-  metaConnection,
-  canManageMetaConnection,
   user,
 }: DashboardProps) {
   const {
@@ -840,10 +835,6 @@ export function LeadDashboard({
     window.location.assign("/api/rd/connect");
   }
 
-  function handleConnectMeta() {
-    window.location.assign("/api/meta/connect");
-  }
-
   async function handleLogout() {
     if (neonAuthEnabled) {
       await neonAuthClient.signOut();
@@ -1237,38 +1228,6 @@ export function LeadDashboard({
             </div>
             <span>
               {rdConfigured ? "RD configurado" : "Ambiente demonstrativo"}
-            </span>
-          </section>
-        )}
-
-        {mode === "live" && metaConnection && (
-          <section className={`meta-connection-card ${metaConnection.requiresReconnect ? "requires-reconnect" : ""}`} aria-label="Conexão corporativa do Meta Ads">
-            <div className="meta-connection-icon" aria-hidden="true">
-              <BarChart3 size={18} />
-            </div>
-            <div>
-              <strong>Meta Ads · conexão corporativa</strong>
-              {!metaConnection.configured ? (
-                <p>Aguardando a configuração segura do aplicativo Meta na Vercel.</p>
-              ) : !metaConnection.managerConfigured ? (
-                <p>Defina o e-mail responsável pela conexão corporativa antes de autorizar a conta.</p>
-              ) : !metaConnection.connected ? (
-                <p>Conecte a conta corporativa para identificar automaticamente todas as contas de anúncios acessíveis.</p>
-              ) : (
-                <p>
-                  Conta {metaConnection.accountName || "corporativa"} · {metaConnection.accountCount} {metaConnection.accountCount === 1 ? "conta de anúncio acessível" : "contas de anúncio acessíveis"}
-                  {metaConnection.expiresAt && ` · renovação até ${formatDate(metaConnection.expiresAt)}`}
-                </p>
-              )}
-            </div>
-            {canManageMetaConnection && metaConnection.configured && metaConnection.managerConfigured && (
-              <button className="meta-connection-action" onClick={handleConnectMeta} type="button">
-                <RefreshCw size={15} />
-                {metaConnection.connected ? "Reconectar conta corporativa" : "Conectar conta corporativa"}
-              </button>
-            )}
-            <span className={metaConnection.connected ? "connected" : "pending"}>
-              {metaConnection.requiresReconnect ? "Renovação necessária" : metaConnection.connected ? "Conectada" : "Não conectada"}
             </span>
           </section>
         )}

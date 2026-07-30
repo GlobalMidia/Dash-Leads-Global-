@@ -52,6 +52,7 @@ export function MetaAdsCenter({ mode, user, initialData, canManage }: Props) {
     leads: total.leads + item.leads,
   }), { spend: 0, impressions: 0, clicks: 0, leads: 0 });
   const go = (path: string) => window.location.assign(path);
+  const connectMeta = () => window.location.assign("/api/meta/connect");
   const setPreset = (days: number) => {
     const end = new Date();
     const start = new Date(end);
@@ -149,7 +150,10 @@ export function MetaAdsCenter({ mode, user, initialData, canManage }: Props) {
     <main className="dashboard-main meta-ads-main">
       <section className="meta-ads-hero">
         <div><p className="eyebrow">MÍDIA PAGA · CONEXÃO CORPORATIVA</p><h1>Meta Ads</h1><p className="hero-subtitle">Veja todas as contas acessíveis, cada uma com seus próprios resultados e campanhas, no período que você escolher.</p></div>
-        <button className="sync-button" disabled={!data.connected || syncing} onClick={() => void sync()} type="button">{syncing ? <LoaderCircle className="animate-spin" size={17} /> : <RefreshCw size={17} />} {syncing ? "Atualizando contas..." : "Atualizar resultados"}</button>
+        <div className="meta-ads-hero-actions">
+          {canManage && mode === "live" && <button className="meta-connection-action" onClick={connectMeta} type="button"><RefreshCw size={15} />{data.connected ? "Reconectar conta corporativa" : "Conectar conta corporativa"}</button>}
+          <button className="sync-button" disabled={!data.connected || syncing} onClick={() => void sync()} type="button">{syncing ? <LoaderCircle className="animate-spin" size={17} /> : <RefreshCw size={17} />} {syncing ? "Atualizando contas..." : "Atualizar resultados"}</button>
+        </div>
       </section>
       {!data.connected ? <section className="meta-ads-empty"><BarChart3 size={25} /><div><h2>Conta corporativa ainda não conectada</h2><p>Conecte a conta André no painel de leads antes de consultar resultados.</p></div><button className="tutorial-button" onClick={() => go("/")} type="button">Ir ao painel</button></section> : <>
         <section className="meta-ads-period">
