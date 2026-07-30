@@ -240,6 +240,10 @@ export async function storeMetaConnection(input: {
       connected_at = NOW(),
       updated_at = NOW()
   `;
+  console.info("Conexão corporativa do Meta Ads salva.", {
+    accountCount: input.accounts.length,
+    expiresAt: input.expiresAt?.toISOString() ?? null,
+  });
 }
 
 export async function getMetaConnectionStatus(): Promise<MetaConnectionStatus> {
@@ -261,6 +265,7 @@ export async function getMetaConnectionStatus(): Promise<MetaConnectionStatus> {
     `) as Array<{ meta_user_name: string | null; ad_accounts: unknown; access_token_expires_at: Date | string | null }>;
     const row = rows[0];
     if (!row) {
+      console.warn("Nenhuma conexão corporativa do Meta Ads foi encontrada no banco.");
       return { ...base, connected: false, accountName: null, accountCount: 0, expiresAt: null, requiresReconnect: false };
     }
     const expiresAt = row.access_token_expires_at ? new Date(row.access_token_expires_at) : null;
@@ -273,7 +278,10 @@ export async function getMetaConnectionStatus(): Promise<MetaConnectionStatus> {
       expiresAt: expiresAt?.toISOString() ?? null,
       requiresReconnect: Boolean(expiresAt && expiresAt.getTime() <= Date.now() + 10 * 24 * 60 * 60 * 1000),
     };
-  } catch {
+  } catch (error) {
+    console.error("Falha ao carregar a conexão corporativa do Meta Ads.", {
+      message: error instanceof Error ? error.message : "Erro desconhecido",
+    });
     return { ...base, connected: false, accountName: null, accountCount: 0, expiresAt: null, requiresReconnect: false };
   }
 }
