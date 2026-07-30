@@ -189,7 +189,10 @@ export function authorizationUrl(origin: string, state: string) {
   url.searchParams.set("redirect_uri", callbackUrl(origin));
   url.searchParams.set("state", state);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "ads_read,leads_retrieval,pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads");
+  // A assinatura leadgen já é configurada no produto Page Webhooks do app.
+  // Não solicitamos pages_manage_metadata/pages_manage_ads aqui: essas
+  // permissões exigem aprovação adicional e impedem o OAuth deste app.
+  url.searchParams.set("scope", "ads_read,leads_retrieval,pages_show_list,pages_read_engagement");
   return url;
 }
 
