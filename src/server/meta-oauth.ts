@@ -34,6 +34,14 @@ type MetaAdAccountsResponse = {
   paging?: { next?: string };
 };
 
+export type StoredMetaAdAccount = {
+  id: string;
+  accountId: string;
+  name: string;
+  currency: string;
+  status: number | null;
+};
+
 export type MetaConnectionStatus = {
   configured: boolean;
   managerConfigured: boolean;
@@ -331,4 +339,36 @@ export async function getMetaConnectionStatus(): Promise<MetaConnectionStatus> {
     });
     return { ...base, connected: false, accountName: null, accountCount: 0, expiresAt: null, requiresReconnect: false };
   }
+}
+
+function storedAccounts(value: unknown): StoredMetaAdAccount[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((account) => {
+    if (!account || typeof account !== "object") return [];
+    const row = account as Record<string, unknown>;
+    if (typeof row.id !== "string" || !row.id) return [];
+    return [{
+      id: row.id,
+      accountId: typeof row.accountId === "string" ? row.accountId : "",
+      name: typeof row.name === "string" && row.name ? row.name : "Conta sem nome",
+      currency: typeof row.currency === "string" ? row.currency : "",
+      status: typeof row.status === "number" ? row.status : null,
+    }];
+  });
+}
+
+export async function getMetaConnectionForReporting() {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT encrypted_access_token, ad_accounts
+    FROM meta_ads_connections
+    WHERE connection_identifier = ${CONNECTION_IDENTIFIER}
+    LIMIT 1
+  `) as Array<{ encrypted_access_token: string; ad_accounts: unknown }>;
+  const connection = rows[0];
+  if (!connection) return null;
+  return {
+    accessToken: decrypt(connection.encrypted_access_token),
+    accounts: storedAccounts(connection.ad_accounts),
+  };
 }

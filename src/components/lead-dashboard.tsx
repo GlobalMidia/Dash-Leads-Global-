@@ -505,6 +505,10 @@ export function LeadDashboard({
     window.location.assign("/health");
   }
 
+  function goToMetaAds() {
+    window.location.assign("/meta-ads");
+  }
+
   function goToDashboardTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1104,6 +1108,15 @@ export function LeadDashboard({
           type="button"
         >
           <HeartPulse size={19} />
+        </button>
+        <button
+          aria-label="Abrir Meta Ads"
+          className="rail-button"
+          onClick={goToMetaAds}
+          title="Meta Ads"
+          type="button"
+        >
+          <BarChart3 size={19} />
         </button>
         <button
           className="rail-button"
