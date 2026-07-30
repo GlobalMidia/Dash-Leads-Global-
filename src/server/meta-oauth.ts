@@ -189,7 +189,7 @@ export function authorizationUrl(origin: string, state: string) {
   url.searchParams.set("redirect_uri", callbackUrl(origin));
   url.searchParams.set("state", state);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "ads_read");
+  url.searchParams.set("scope", "ads_read,leads_retrieval,pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads");
   return url;
 }
 
