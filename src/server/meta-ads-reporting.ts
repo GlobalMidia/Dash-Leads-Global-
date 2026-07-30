@@ -12,8 +12,7 @@ type SnapshotRow = {
   leads: string | number | null; campaign_count: string | number | null; campaigns: unknown; synced_at: Date | string | null; sync_error: string | null;
 };
 type MetaInsight = { campaign_id?: string; campaign_name?: string; spend?: string; impressions?: string; clicks?: string; reach?: string; ctr?: string; cpc?: string; actions?: Array<{ action_type?: string; value?: string }> };
-type MetaCampaign = { id?: string; name?: string; status?: string; objective?: string };
-type MetaResponse<T> = { data?: T[] };
+type MetaResponse<T> = { data?: T[]; paging?: { next?: string } };
 
 export function defaultMetaAdsPeriod(): MetaAdsPeriod {
   const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - 29);
@@ -91,27 +90,38 @@ async function metaJson<T>(url: URL) {
   return (await response.json()) as T;
 }
 
+async function allInsightPages(url: URL) {
+  const items: MetaInsight[] = [];
+  let nextUrl: URL | null = url;
+
+  while (nextUrl) {
+    const page = await metaJson<MetaResponse<MetaInsight>>(nextUrl);
+    items.push(...(page.data ?? []));
+    nextUrl = page.paging?.next ? new URL(page.paging.next) : null;
+  }
+
+  return items;
+}
+
 async function syncOne(account: StoredMetaAdAccount, accessToken: string, period: MetaAdsPeriod) {
   const root = `${META_GRAPH_BASE}/${apiVersion()}/${encodeURIComponent(account.id)}`;
-  const createInsightsUrl = (level: "account" | "campaign") => {
-    const url = new URL(`${root}/insights`);
-    url.searchParams.set("fields", level === "account" ? "spend,impressions,clicks,reach,actions" : "campaign_id,campaign_name,spend,impressions,clicks,reach,actions,ctr,cpc");
-    url.searchParams.set("time_range", JSON.stringify({ since: period.startDate, until: period.endDate })); url.searchParams.set("level", level); url.searchParams.set("limit", "500"); url.searchParams.set("access_token", accessToken); return url;
-  };
-  const campaignsUrl = new URL(`${root}/campaigns`); campaignsUrl.searchParams.set("fields", "id,name,status,objective"); campaignsUrl.searchParams.set("limit", "250"); campaignsUrl.searchParams.set("access_token", accessToken);
-  const [overview, metadata, details] = await Promise.all([metaJson<MetaResponse<MetaInsight>>(createInsightsUrl("account")), metaJson<MetaResponse<MetaCampaign>>(campaignsUrl), metaJson<MetaResponse<MetaInsight>>(createInsightsUrl("campaign"))]);
-  const byId = new Map((metadata.data ?? []).flatMap((item) => item.id ? [[item.id, item]] : []));
-  const campaignData: MetaAdsCampaign[] = (details.data ?? []).flatMap((item) => {
-    if (!item.campaign_id) return []; const meta = byId.get(item.campaign_id);
-    return [{ id: item.campaign_id, name: item.campaign_name || meta?.name || "Campanha sem nome", status: meta?.status || "UNKNOWN", objective: meta?.objective || "", spend: numeric(item.spend), impressions: numeric(item.impressions), clicks: numeric(item.clicks), reach: numeric(item.reach), leads: leadCount(item.actions), ctr: numeric(item.ctr), cpc: numeric(item.cpc) }];
+  const url = new URL(`${root}/insights`);
+  url.searchParams.set("fields", "campaign_id,campaign_name,spend,impressions,clicks,reach,actions,ctr,cpc");
+  url.searchParams.set("time_range", JSON.stringify({ since: period.startDate, until: period.endDate }));
+  url.searchParams.set("level", "campaign"); url.searchParams.set("limit", "500"); url.searchParams.set("access_token", accessToken);
+  const insightData = await allInsightPages(url);
+  const campaignData: MetaAdsCampaign[] = insightData.flatMap((item) => {
+    if (!item.campaign_id) return [];
+    return [{ id: item.campaign_id, name: item.campaign_name || "Campanha sem nome", status: "UNKNOWN", objective: "", spend: numeric(item.spend), impressions: numeric(item.impressions), clicks: numeric(item.clicks), reach: numeric(item.reach), leads: leadCount(item.actions), ctr: numeric(item.ctr), cpc: numeric(item.cpc) }];
   }).sort((a, b) => b.spend - a.spend);
-  const total = overview.data?.[0] ?? {};
-  return { spend: numeric(total.spend), impressions: numeric(total.impressions), clicks: numeric(total.clicks), reach: numeric(total.reach), leads: leadCount(total.actions), campaigns: campaignData };
+  const total = campaignData.reduce((sum, item) => ({ spend: sum.spend + item.spend, impressions: sum.impressions + item.impressions, clicks: sum.clicks + item.clicks, reach: sum.reach + item.reach, leads: sum.leads + item.leads }), { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0 });
+  return { ...total, campaigns: campaignData };
 }
 
 export async function syncMetaAdsAccounts(input: Partial<MetaAdsPeriod> = {}) {
   const period = validMetaAdsPeriod(input); const connection = await getMetaConnectionForReporting();
   if (!connection) throw new Error("A conta corporativa do Meta Ads não está conectada.");
+  console.info("[meta-ads/sync] started", { accounts: connection.accounts.length, period });
   await saveMetaAdsSelections(connection.accounts.map((item) => item.id), "sistema");
   const sql = getSql(); let synced = 0; const failed: string[] = [];
   const queue = [...connection.accounts];
@@ -127,6 +137,7 @@ export async function syncMetaAdsAccounts(input: Partial<MetaAdsPeriod> = {}) {
       `; synced += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 900) : "Falha desconhecida ao consultar a conta."; failed.push(item.name);
+      console.warn("[meta-ads/sync] account failed", { accountId: item.accountId, accountName: item.name, message });
       await sql`INSERT INTO meta_ads_account_snapshots (account_id, period_start, period_end, sync_error, synced_at) VALUES (${item.id}, ${period.startDate}, ${period.endDate}, ${message}, NOW()) ON CONFLICT (account_id, period_start, period_end) DO UPDATE SET sync_error = EXCLUDED.sync_error, synced_at = NOW()`;
     }
       item = queue.shift();
@@ -134,5 +145,6 @@ export async function syncMetaAdsAccounts(input: Partial<MetaAdsPeriod> = {}) {
   };
   // Três contas por vez mantém a resposta rápida sem criar um pico de chamadas na API da Meta.
   await Promise.all(Array.from({ length: Math.min(3, connection.accounts.length) }, runWorker));
+  console.info("[meta-ads/sync] completed", { accounts: connection.accounts.length, synced, failed: failed.length, period });
   return { synced, failed, data: await getMetaAdsDashboardData(period) };
 }
