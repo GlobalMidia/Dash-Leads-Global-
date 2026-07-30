@@ -103,8 +103,11 @@ export function isMetaOAuthConfigured() {
 }
 
 export function canManageMetaConnection(email: string) {
-  const manager = process.env.META_CONNECTION_MANAGER_EMAIL?.trim().toLowerCase();
-  return Boolean(manager && email.trim().toLowerCase() === manager);
+  const managers = (process.env.META_CONNECTION_MANAGER_EMAIL ?? "")
+    .split(/[;,]/)
+    .map((manager) => manager.trim().toLowerCase())
+    .filter(Boolean);
+  return managers.includes(email.trim().toLowerCase());
 }
 
 export function createState() {
