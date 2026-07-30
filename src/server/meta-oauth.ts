@@ -375,3 +375,11 @@ export async function getMetaConnectionForReporting() {
     accounts: storedAccounts(connection.ad_accounts),
   };
 }
+
+export async function getMetaAccessToken() {
+  const connection = await getMetaConnectionForReporting();
+  if (!connection?.accessToken) {
+    throw new Error("A conta corporativa do Meta Ads não está conectada.");
+  }
+  return connection.accessToken;
+}

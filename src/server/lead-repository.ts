@@ -77,7 +77,8 @@ function mapRow(row: DatabaseRow): Lead {
   const sourceType = String(row.source_type ?? "manual") as
     | "rd"
     | "csv"
-    | "manual";
+    | "manual"
+    | "meta";
   const sourceFile = row.import_file_name
     ? String(row.import_file_name)
     : undefined;
@@ -105,6 +106,8 @@ function mapRow(row: DatabaseRow): Lead {
             ? "RD Station"
             : sourceType === "csv"
               ? "Importação CSV"
+              : sourceType === "meta"
+                ? "Meta Lead Ads"
               : "Cadastro manual"),
       ),
       fileName: sourceFile,

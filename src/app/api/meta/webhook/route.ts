@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hasValidMetaWebhookSignature, metaWebhookVerifyToken, storeMetaLeadWebhook } from "@/server/meta-lead-webhook";
+import {
+  hasValidMetaWebhookSignature,
+  metaWebhookVerifyToken,
+  processMetaLeadWebhookEvents,
+  storeMetaLeadWebhook,
+} from "@/server/meta-lead-webhook";
 
 export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("hub.mode");
@@ -17,8 +22,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
   }
   try {
-    const result = await storeMetaLeadWebhook(rawBody);
-    console.info("[meta/lead-webhook] received", result);
+    const stored = await storeMetaLeadWebhook(rawBody);
+    const result = await processMetaLeadWebhookEvents(stored.events);
+    console.info("[meta/lead-webhook] received", { stored: stored.stored, ...result });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[meta/lead-webhook] failed", { error: error instanceof Error ? error.message : String(error) });

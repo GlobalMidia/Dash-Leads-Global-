@@ -9,7 +9,7 @@ export const LEAD_STATUSES = [
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export type LeadSource = {
-  type: "rd" | "csv" | "manual";
+  type: "rd" | "csv" | "manual" | "meta";
   label: string;
   fileName?: string;
   importedAt?: string;
