@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Building2, CalendarDays, HeartPulse, LayoutDashboard, LoaderCircle, RefreshCw, Search, X } from "lucide-react";
+import { Archive, ArchiveRestore, BarChart3, Building2, CalendarDays, HeartPulse, LayoutDashboard, LoaderCircle, RefreshCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import type { MetaAdsAccount, MetaAdsDashboardData } from "@/types/meta-ads";
@@ -23,7 +23,7 @@ function status(value: string) {
   return value === "UNKNOWN" ? "Resultado do período" : value || "Sem status";
 }
 
-export function MetaAdsCenter({ mode, user, initialData }: Props) {
+export function MetaAdsCenter({ mode, user, initialData, canManage }: Props) {
   const { preferences, resolvedTheme } = useProfilePreferences(user.email);
   const [data, setData] = useState(initialData);
   const [query, setQuery] = useState("");
@@ -34,11 +34,17 @@ export function MetaAdsCenter({ mode, user, initialData }: Props) {
   const [endDate, setEndDate] = useState(initialData.period.endDate);
   const [modalStartDate, setModalStartDate] = useState(initialData.period.startDate);
   const [modalEndDate, setModalEndDate] = useState(initialData.period.endDate);
+  const [accountFilter, setAccountFilter] = useState<"active" | "campaigns" | "archived">("active");
+  const [archivingAccountId, setArchivingAccountId] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return data.accounts.filter((item) => `${item.name} ${item.accountId}`.toLowerCase().includes(term));
-  }, [data.accounts, query]);
+    return data.accounts.filter((item) => {
+      const matchesSearch = `${item.name} ${item.accountId}`.toLowerCase().includes(term);
+      const matchesFilter = accountFilter === "archived" ? item.archived : accountFilter === "campaigns" ? !item.archived && item.campaignCount > 0 : !item.archived;
+      return matchesSearch && matchesFilter;
+    });
+  }, [accountFilter, data.accounts, query]);
   const totals = data.accounts.reduce((total, item) => ({
     spend: total.spend + item.spend,
     impressions: total.impressions + item.impressions,
@@ -101,6 +107,27 @@ export function MetaAdsCenter({ mode, user, initialData }: Props) {
     setModalStartDate(start.toISOString().slice(0, 10));
     setModalEndDate(end.toISOString().slice(0, 10));
   };
+  async function toggleArchive(account: MetaAdsAccount) {
+    if (!canManage || archivingAccountId) return;
+    const action = account.archived ? "restaurar" : "arquivar";
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} a conta ${account.name}?`)) return;
+    setArchivingAccountId(account.id);
+    try {
+      const response = await fetch(`/api/meta/accounts/${encodeURIComponent(account.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: !account.archived, startDate, endDate }),
+      });
+      const result = await response.json() as { data?: MetaAdsDashboardData; error?: string };
+      if (!response.ok || !result.data) throw new Error(result.error ?? "Não foi possível alterar a conta.");
+      setData(result.data);
+      setNotice(account.archived ? "Conta restaurada na lista ativa." : "Conta arquivada. Ela continua disponível no filtro Arquivadas.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível alterar a conta.");
+    } finally {
+      setArchivingAccountId(null);
+    }
+  }
 
   const emptyCampaignMessage = selected?.syncError
     ? "Esta conta não pôde ser atualizada neste período. Clique em Aplicar período novamente para tentar."
@@ -137,8 +164,8 @@ export function MetaAdsCenter({ mode, user, initialData }: Props) {
         <section className="meta-ads-status"><BarChart3 size={19} /><div><strong>{data.accounts.length} contas corporativas disponíveis</strong><p>Última atualização deste período: {dateTime(data.lastSyncAt)}</p></div><span>{data.accounts.filter((item) => item.syncedAt).length} atualizadas</span></section>
         <section className="meta-ads-summary" aria-label="Somatória de todas as contas corporativas no período"><article><small>INVESTIMENTO TOTAL</small><strong>{currency(totals.spend, data.accounts[0]?.currency || "BRL")}</strong></article><article><small>IMPRESSÕES TOTAIS</small><strong>{number(totals.impressions)}</strong></article><article><small>CLIQUES TOTAIS</small><strong>{number(totals.clicks)}</strong></article><article><small>LEADS IDENTIFICADOS</small><strong>{number(totals.leads)}</strong></article></section>
         <section className="meta-ads-accounts">
-          <header><div><p className="eyebrow">RESULTADO POR CONTA</p><h2>Contas de anúncio</h2><p>Somatória acima e todas as contas acessíveis abaixo. Abra qualquer uma para consultar as campanhas.</p></div><label className="meta-ads-search"><Search size={16} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar conta ou ID" value={query} /></label></header>
-          <div className="meta-ads-account-list">{visible.map((item) => <article className={item.syncedAt ? "selected" : ""} key={item.id}><div><h3>{item.name}</h3><p>{item.accountId ? `ID ${item.accountId}` : item.id}{item.currency ? ` · ${item.currency}` : ""}</p></div><dl><div><dt>Investimento</dt><dd>{item.syncedAt ? currency(item.spend, item.currency || "BRL") : "—"}</dd></div><div><dt>Campanhas</dt><dd>{item.syncedAt ? item.campaignCount : "—"}</dd></div><div><dt>Leads</dt><dd>{item.syncedAt ? item.leads : "—"}</dd></div></dl>{item.syncError && <span className="meta-ads-account-error">Atualização pendente</span>}<button className="tutorial-button" onClick={() => openAccount(item)} type="button">Ver campanhas</button></article>)}</div>
+          <header><div><p className="eyebrow">RESULTADO POR CONTA</p><h2>Contas de anúncio</h2><p>Somatória acima e todas as contas acessíveis abaixo. Abra qualquer uma para consultar as campanhas.</p></div><div className="meta-ads-list-controls"><div className="meta-ads-filter-tabs" role="tablist" aria-label="Filtrar contas"><button aria-selected={accountFilter === "active"} className={accountFilter === "active" ? "active" : ""} onClick={() => setAccountFilter("active")} role="tab" type="button">Ativas <span>{data.accounts.filter((item) => !item.archived).length}</span></button><button aria-selected={accountFilter === "campaigns"} className={accountFilter === "campaigns" ? "active" : ""} onClick={() => setAccountFilter("campaigns")} role="tab" type="button">Com campanhas <span>{data.accounts.filter((item) => !item.archived && item.campaignCount > 0).length}</span></button><button aria-selected={accountFilter === "archived"} className={accountFilter === "archived" ? "active" : ""} onClick={() => setAccountFilter("archived")} role="tab" type="button">Arquivadas <span>{data.accounts.filter((item) => item.archived).length}</span></button></div><label className="meta-ads-search"><Search size={16} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar conta ou ID" value={query} /></label></div></header>
+          <div className="meta-ads-account-list">{visible.length ? visible.map((item) => <article className={`${item.syncedAt ? "selected" : ""}${item.archived ? " archived" : ""}`} key={item.id}><div><h3>{item.name}</h3><p>{item.accountId ? `ID ${item.accountId}` : item.id}{item.currency ? ` · ${item.currency}` : ""}{item.archived ? " · Arquivada" : ""}</p></div><dl><div><dt>Investimento</dt><dd>{item.syncedAt ? currency(item.spend, item.currency || "BRL") : "—"}</dd></div><div><dt>Campanhas</dt><dd>{item.syncedAt ? item.campaignCount : "—"}</dd></div><div><dt>Leads</dt><dd>{item.syncedAt ? item.leads : "—"}</dd></div></dl>{item.syncError && <span className="meta-ads-account-error">Atualização pendente</span>}{canManage && <button className="meta-ads-archive-button" disabled={archivingAccountId === item.id} onClick={() => void toggleArchive(item)} type="button">{item.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{archivingAccountId === item.id ? "Salvando..." : item.archived ? "Restaurar" : "Arquivar"}</button>}<button className="tutorial-button" onClick={() => openAccount(item)} type="button">Ver campanhas</button></article>) : <p className="meta-ads-no-accounts">Nenhuma conta encontrada neste filtro.</p>}</div>
         </section>
       </>}
       <section className="meta-ads-next"><strong>Dados exibidos</strong><p>Resultados de mídia da Meta Ads. A captação de formulários e o vínculo automático de campanhas aos leads entrarão na próxima etapa, após habilitarmos a permissão específica de leads.</p></section>

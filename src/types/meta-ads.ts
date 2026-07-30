@@ -21,6 +21,8 @@ export type MetaAdsAccount = {
   currency: string;
   status: number | null;
   selected: boolean;
+  archived: boolean;
+  archivedAt: string | null;
   spend: number;
   impressions: number;
   clicks: number;

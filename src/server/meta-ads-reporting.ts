@@ -7,7 +7,7 @@ import type { MetaAdsAccount, MetaAdsCampaign, MetaAdsDashboardData, MetaAdsPeri
 const META_GRAPH_BASE = "https://graph.facebook.com";
 
 type SnapshotRow = {
-  account_id: string; account_name: string; account_number: string; currency: string; account_status: number | null; selected: boolean;
+  account_id: string; account_name: string; account_number: string; currency: string; account_status: number | null; selected: boolean; archived: boolean; archived_at: Date | string | null;
   spend: string | number | null; impressions: string | number | null; clicks: string | number | null; reach: string | number | null;
   leads: string | number | null; campaign_count: string | number | null; campaigns: unknown; synced_at: Date | string | null; sync_error: string | null;
 };
@@ -43,13 +43,13 @@ function campaigns(value: unknown): MetaAdsCampaign[] {
 }
 
 function account(row: SnapshotRow): MetaAdsAccount {
-  return { id: row.account_id, accountId: row.account_number, name: row.account_name || "Conta sem nome", currency: row.currency, status: row.account_status, selected: row.selected, spend: numeric(row.spend), impressions: numeric(row.impressions), clicks: numeric(row.clicks), reach: numeric(row.reach), leads: numeric(row.leads), campaignCount: numeric(row.campaign_count), campaigns: campaigns(row.campaigns), syncedAt: row.synced_at ? new Date(row.synced_at).toISOString() : null, syncError: row.sync_error };
+  return { id: row.account_id, accountId: row.account_number, name: row.account_name || "Conta sem nome", currency: row.currency, status: row.account_status, selected: row.selected, archived: row.archived, archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null, spend: numeric(row.spend), impressions: numeric(row.impressions), clicks: numeric(row.clicks), reach: numeric(row.reach), leads: numeric(row.leads), campaignCount: numeric(row.campaign_count), campaigns: campaigns(row.campaigns), syncedAt: row.synced_at ? new Date(row.synced_at).toISOString() : null, syncError: row.sync_error };
 }
 
 async function rows(period: MetaAdsPeriod) {
   const sql = getSql();
   return (await sql`
-    SELECT selection.account_id, selection.account_name, selection.account_number, selection.currency, selection.account_status, selection.selected,
+    SELECT selection.account_id, selection.account_name, selection.account_number, selection.currency, selection.account_status, selection.selected, selection.archived, selection.archived_at,
       snapshot.spend, snapshot.impressions, snapshot.clicks, snapshot.reach, snapshot.leads, snapshot.campaign_count, snapshot.campaigns, snapshot.synced_at, snapshot.sync_error
     FROM meta_ads_account_selections selection
     LEFT JOIN LATERAL (
@@ -66,7 +66,7 @@ export async function getMetaAdsDashboardData(input: Partial<MetaAdsPeriod> = {}
   const period = validMetaAdsPeriod(input); const connection = await getMetaConnectionForReporting();
   if (!connection) return { connected: false, accountName: null, accounts: [], selectedCount: 0, lastSyncAt: null, period };
   const existing = new Map((await rows(period)).map((row) => [row.account_id, row]));
-  const all = connection.accounts.map((stored) => account(existing.get(stored.id) ?? { account_id: stored.id, account_name: stored.name, account_number: stored.accountId, currency: stored.currency, account_status: stored.status, selected: true, spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, campaign_count: 0, campaigns: [], synced_at: null, sync_error: null })).sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  const all = connection.accounts.map((stored) => account(existing.get(stored.id) ?? { account_id: stored.id, account_name: stored.name, account_number: stored.accountId, currency: stored.currency, account_status: stored.status, selected: true, archived: false, archived_at: null, spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, campaign_count: 0, campaigns: [], synced_at: null, sync_error: null })).sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
   const latest = all.reduce((result, item) => Math.max(result, item.syncedAt ? Date.parse(item.syncedAt) : 0), 0);
   return { connected: true, accountName: null, accounts: all, selectedCount: all.length, lastSyncAt: latest ? new Date(latest).toISOString() : null, period };
 }
@@ -82,6 +82,23 @@ export async function saveMetaAdsSelections(accountIds: string[], actorEmail: st
     ON CONFLICT (account_id) DO UPDATE SET account_name = EXCLUDED.account_name, account_number = EXCLUDED.account_number, currency = EXCLUDED.currency, account_status = EXCLUDED.account_status, selected = EXCLUDED.selected, selected_by_email = EXCLUDED.selected_by_email, selected_at = CASE WHEN EXCLUDED.selected THEN NOW() ELSE NULL END, updated_at = NOW()
   `));
   return getMetaAdsDashboardData();
+}
+
+export async function setMetaAdsAccountArchived(accountId: string, archived: boolean, actorEmail: string, input: Partial<MetaAdsPeriod> = {}) {
+  const period = validMetaAdsPeriod(input);
+  const connection = await getMetaConnectionForReporting();
+  if (!connection || !connection.accounts.some((item) => item.id === accountId)) {
+    throw new Error("A conta informada não pertence à conexão corporativa atual.");
+  }
+
+  await saveMetaAdsSelections(connection.accounts.map((item) => item.id), actorEmail);
+  const sql = getSql();
+  await sql`
+    UPDATE meta_ads_account_selections
+    SET archived = ${archived}, archived_at = ${archived ? new Date() : null}, archived_by_email = ${archived ? actorEmail : null}, updated_at = NOW()
+    WHERE account_id = ${accountId}
+  `;
+  return getMetaAdsDashboardData(period);
 }
 
 async function metaJson<T>(url: URL) {
