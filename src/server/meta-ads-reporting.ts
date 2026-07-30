@@ -95,7 +95,7 @@ async function allInsightPages(url: URL) {
   let nextUrl: URL | null = url;
 
   while (nextUrl) {
-    const page = await metaJson<MetaResponse<MetaInsight>>(nextUrl);
+    const page: MetaResponse<MetaInsight> = await metaJson<MetaResponse<MetaInsight>>(nextUrl);
     items.push(...(page.data ?? []));
     nextUrl = page.paging?.next ? new URL(page.paging.next) : null;
   }
