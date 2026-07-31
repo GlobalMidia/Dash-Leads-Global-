@@ -4,6 +4,15 @@ import type { GoogleAdsAccount, GoogleAdsCampaign, GoogleAdsDashboardData, Googl
 
 const GOOGLE_ADS_BASE = "https://googleads.googleapis.com";
 const CORPORATE_MCC_ID = "1076916142";
+const CORPORATE_ACCOUNT_NAMES: Record<string, string> = {
+  "2754164095": "AMP Embalagens", "5147190221": "Botannico", "4776852893": "CTM",
+  "5990971658": "Cerveja Guitt's", "4578262494": "Convenção", "2151728262": "Eterna Pata",
+  "1763540011": "Giacom", "4212643303": "Guarnieri", "8400545568": "Kadra Rizzi",
+  "3025415588": "Konig", "5755550864": "Momix", "2880508682": "Onlog Express | Matriz",
+  "2340999784": "Onlog Express | Matriz | 2026", "7412484344": "Outboxing", "3906923874": "Pezzette",
+  "9365903268": "Programa Mundo Empresarial", "5977068915": "Ravache", "2894322643": "Rodotransfer",
+  "4428811998": "WATERTEC", "8774195660": "WoodWise", "9307818411": "teste",
+};
 const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642", "7217008929", "8464193409"]);
 
 function env(name: string) {
@@ -149,9 +158,9 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
       ...accessibleIds,
     ].map(customerId).filter(Boolean))];
     const managerChildren = (await Promise.all(managerCandidates.map((managerId) => listManagerCustomers(token, managerId).catch(() => [])))).flat();
-    const ids = [...new Set([...accessibleIds, ...managerChildren].map(customerId))].filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
+    const ids = [...new Set([...accessibleIds, ...managerChildren, ...Object.keys(CORPORATE_ACCOUNT_NAMES)].map(customerId))].filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
     const results = await Promise.all(ids.map(async (id) => {
-      try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
+      try { return await accountReport(token, id, period); } catch (error) { return { id, name: CORPORATE_ACCOUNT_NAMES[id] ?? `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
     const visibleResults = results.filter((account) => !IGNORED_CUSTOMER_IDS.has(customerId(account.id)));
     return { configured: true, accounts: visibleResults.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
