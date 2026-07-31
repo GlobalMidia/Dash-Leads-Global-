@@ -4,6 +4,7 @@ import { BarChart3, CalendarDays, LayoutDashboard, LoaderCircle, RefreshCw, Buil
 import { useMemo, useState } from "react";
 import type { DashboardUser } from "@/server/dashboard-auth";
 import type { GoogleAdsDashboardData } from "@/types/google-ads";
+import { useProfilePreferences } from "@/components/use-profile-preferences";
 
 type Props = { user: DashboardUser; initialData: GoogleAdsDashboardData };
 
@@ -11,6 +12,7 @@ function number(value: number) { return new Intl.NumberFormat("pt-BR", { notatio
 function money(value: number, currency = "BRL") { return new Intl.NumberFormat("pt-BR", { style: "currency", currency, maximumFractionDigits: 0 }).format(value); }
 
 export function GoogleAdsCenter({ user, initialData }: Props) {
+  const { preferences, resolvedTheme } = useProfilePreferences(user.email);
   const [data, setData] = useState(initialData);
   const [startDate, setStartDate] = useState(initialData.period.startDate);
   const [endDate, setEndDate] = useState(initialData.period.endDate);
@@ -33,7 +35,7 @@ export function GoogleAdsCenter({ user, initialData }: Props) {
     finally { setLoading(false); }
   }
 
-  return <div className="dashboard-shell google-ads-shell">
+  return <div className="dashboard-shell google-ads-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
     <header className="topbar"><button className="brand-lockup" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button><div className="topbar-actions"><span className="mode-pill live"><span className="mode-dot" />Google Ads</span><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div></header>
     <aside className="side-rail" aria-label="Navegação principal"><button className="rail-button" onClick={() => go("/")} title="Painel de leads" type="button"><LayoutDashboard size={19} /></button><button className="rail-button" onClick={() => go("/pme")} title="PME e reativação" type="button"><Building2 size={19} /></button><button className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button><button className="rail-button" onClick={() => go("/meta-ads")} title="Meta Ads" type="button"><BarChart3 size={19} /></button><button className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="Google Ads" type="button"><BarChart3 size={19} /></button></aside>
     <main className="dashboard-main google-ads-main"><section className="google-ads-hero"><div><p className="eyebrow">MÍDIA PAGA · CONEXÃO CORPORATIVA</p><h1>Google Ads</h1><p className="hero-subtitle">Consulte contas, campanhas e resultados diretamente da API do Google Ads.</p></div><button className="sync-button" disabled={loading} onClick={() => void refresh()} type="button">{loading ? <LoaderCircle className="animate-spin" size={17} /> : <RefreshCw size={17} />} {loading ? "Atualizando..." : "Atualizar resultados"}</button></section>
