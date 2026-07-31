@@ -87,6 +87,13 @@ async function listAccessibleCustomers(token: string) {
   return (data.resourceNames ?? []).map((resource) => resource.split("/").pop()).filter(Boolean) as string[];
 }
 
+async function listManagerCustomers(token: string) {
+  const managerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
+  if (!managerId) return [];
+  const response = await googleRequest<SearchResponse>(token, `customers/${customerId(managerId)}/googleAds:search`, "SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager WHERE customer_client.level <= 1");
+  return (response.results ?? []).map((row) => String(object(row.customerClient).id ?? "")).filter(Boolean);
+}
+
 type SearchResponse = { results?: Array<Record<string, unknown>> };
 function object(value: unknown) { return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
 
@@ -128,7 +135,9 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
   if (!isGoogleAdsConfigured()) return { configured: false, accounts: [], period, lastUpdated: null, error: "As variáveis do Google Ads ainda não foram configuradas." };
   try {
     const token = await accessToken();
-    const ids = (await listAccessibleCustomers(token)).filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
+    const managerIds = await listManagerCustomers(token).catch(() => []);
+    const accessibleIds = managerIds.length ? managerIds : await listAccessibleCustomers(token);
+    const ids = [...new Set(accessibleIds)].filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
     const results = await Promise.all(ids.map(async (id) => {
       try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
