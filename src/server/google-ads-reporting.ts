@@ -3,7 +3,7 @@ import "server-only";
 import type { GoogleAdsAccount, GoogleAdsCampaign, GoogleAdsDashboardData, GoogleAdsPeriod } from "@/types/google-ads";
 
 const GOOGLE_ADS_BASE = "https://googleads.googleapis.com";
-const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642"]);
+const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642", "7217008929", "8464193409"]);
 
 function env(name: string) {
   const value = process.env[name]?.trim();
