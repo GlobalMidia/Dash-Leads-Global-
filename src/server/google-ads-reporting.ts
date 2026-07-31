@@ -58,14 +58,14 @@ async function accessToken() {
   return data.access_token;
 }
 
-async function googleRequest<T>(token: string, path: string, query?: string) {
+async function googleRequest<T>(token: string, path: string, query?: string, loginCustomerIdOverride?: string | null) {
   const version = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v21";
   const headers = new Headers({
     Authorization: `Bearer ${token}`,
     "developer-token": env("GOOGLE_ADS_DEVELOPER_TOKEN"),
     "Content-Type": "application/json",
   });
-  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
+  const loginCustomerId = loginCustomerIdOverride === null ? "" : loginCustomerIdOverride ?? process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
   if (loginCustomerId) headers.set("login-customer-id", customerId(loginCustomerId));
   const response = await fetch(`${GOOGLE_ADS_BASE}/${version}/${path}`, { method: "POST", headers, body: JSON.stringify({ query }), cache: "no-store" });
   if (!response.ok) {
@@ -102,9 +102,18 @@ async function accountReport(token: string, id: string, period: GoogleAdsPeriod)
   if (loginCustomerId && customerId(loginCustomerId) === id) {
     return { id, name: `MCC ${id}`, currency: "BRL", timeZone: "", manager: true, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: new Date().toISOString(), error: null };
   }
-  const accountResult = await googleRequest<SearchResponse>(token, `customers/${id}/googleAds:search`, `SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1`);
+  const accountQuery = `SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1`;
+  const campaignQuery = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date BETWEEN '${period.startDate}' AND '${period.endDate}' ORDER BY metrics.cost_micros DESC`;
+  async function requestAccount<T>(query: string) {
+    try { return await googleRequest<T>(token, `customers/${id}/googleAds:search`, query); }
+    catch (error) {
+      if (String(error).includes("403") && process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim()) return googleRequest<T>(token, `customers/${id}/googleAds:search`, query, null);
+      throw error;
+    }
+  }
+  const accountResult = await requestAccount<SearchResponse>(accountQuery);
   const customer = object(accountResult.results?.[0]?.customer);
-  const campaignResult = await googleRequest<SearchResponse>(token, `customers/${id}/googleAds:search`, `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date BETWEEN '${period.startDate}' AND '${period.endDate}' ORDER BY metrics.cost_micros DESC`);
+  const campaignResult = await requestAccount<SearchResponse>(campaignQuery);
   const campaigns: GoogleAdsCampaign[] = (campaignResult.results ?? []).map((row) => {
     const campaign = object(row.campaign);
     const metrics = object(row.metrics);
