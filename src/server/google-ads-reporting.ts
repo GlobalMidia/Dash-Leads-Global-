@@ -58,8 +58,7 @@ async function accessToken() {
   return data.access_token;
 }
 
-async function googleRequest<T>(path: string, query?: string) {
-  const token = await accessToken();
+async function googleRequest<T>(token: string, path: string, query?: string) {
   const version = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v21";
   const headers = new Headers({
     Authorization: `Bearer ${token}`,
@@ -76,8 +75,7 @@ async function googleRequest<T>(path: string, query?: string) {
   return response.json() as Promise<T>;
 }
 
-async function listAccessibleCustomers() {
-  const token = await accessToken();
+async function listAccessibleCustomers(token: string) {
   const version = process.env.GOOGLE_ADS_API_VERSION?.trim() || "v21";
   const headers = new Headers({ Authorization: `Bearer ${token}`, "developer-token": env("GOOGLE_ADS_DEVELOPER_TOKEN") });
   const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
@@ -91,10 +89,22 @@ async function listAccessibleCustomers() {
 type SearchResponse = { results?: Array<Record<string, unknown>> };
 function object(value: unknown) { return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
 
-async function accountReport(id: string, period: GoogleAdsPeriod): Promise<GoogleAdsAccount> {
-  const accountResult = await googleRequest<SearchResponse>(`customers/${id}/googleAds:search`, `SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1`);
+function readableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("OAuth") || message.includes("oauth")) return "A autorização do Google Ads expirou ou foi rejeitada. Atualize o refresh token na Vercel.";
+  if (message.includes("403") || message.includes("PERMISSION_DENIED")) return "Sem permissão para consultar esta conta com o usuário/MCC configurado.";
+  if (message.includes("400") || message.includes("INVALID_ARGUMENT")) return "Esta conta não pode ser consultada como anunciante (pode ser uma conta gerente/MCC).";
+  return message.slice(0, 220);
+}
+
+async function accountReport(token: string, id: string, period: GoogleAdsPeriod): Promise<GoogleAdsAccount> {
+  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
+  if (loginCustomerId && customerId(loginCustomerId) === id) {
+    return { id, name: `MCC ${id}`, currency: "BRL", timeZone: "", manager: true, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: new Date().toISOString(), error: null };
+  }
+  const accountResult = await googleRequest<SearchResponse>(token, `customers/${id}/googleAds:search`, `SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1`);
   const customer = object(accountResult.results?.[0]?.customer);
-  const campaignResult = await googleRequest<SearchResponse>(`customers/${id}/googleAds:search`, `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date BETWEEN '${period.startDate}' AND '${period.endDate}' ORDER BY metrics.cost_micros DESC`);
+  const campaignResult = await googleRequest<SearchResponse>(token, `customers/${id}/googleAds:search`, `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date BETWEEN '${period.startDate}' AND '${period.endDate}' ORDER BY metrics.cost_micros DESC`);
   const campaigns: GoogleAdsCampaign[] = (campaignResult.results ?? []).map((row) => {
     const campaign = object(row.campaign);
     const metrics = object(row.metrics);
@@ -107,12 +117,13 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
   const period = validGoogleAdsPeriod(input);
   if (!isGoogleAdsConfigured()) return { configured: false, accounts: [], period, lastUpdated: null, error: "As variáveis do Google Ads ainda não foram configuradas." };
   try {
-    const ids = await listAccessibleCustomers();
+    const token = await accessToken();
+    const ids = await listAccessibleCustomers(token);
     const results = await Promise.all(ids.map(async (id) => {
-      try { return await accountReport(id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: error instanceof Error ? error.message : "Falha ao consultar a conta." }; }
+      try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
     return { configured: true, accounts: results.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
   } catch (error) {
-    return { configured: true, accounts: [], period, lastUpdated: null, error: error instanceof Error ? error.message : "Não foi possível consultar o Google Ads." };
+    return { configured: true, accounts: [], period, lastUpdated: null, error: readableError(error) };
   }
 }
