@@ -137,11 +137,12 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
     const token = await accessToken();
     const managerIds = await listManagerCustomers(token).catch(() => []);
     const accessibleIds = managerIds.length ? managerIds : await listAccessibleCustomers(token);
-    const ids = [...new Set(accessibleIds)].filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
+    const ids = [...new Set(accessibleIds.map(customerId))].filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
     const results = await Promise.all(ids.map(async (id) => {
       try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
-    return { configured: true, accounts: results.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
+    const visibleResults = results.filter((account) => !IGNORED_CUSTOMER_IDS.has(customerId(account.id)));
+    return { configured: true, accounts: visibleResults.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
   } catch (error) {
     return { configured: true, accounts: [], period, lastUpdated: null, error: readableError(error) };
   }
