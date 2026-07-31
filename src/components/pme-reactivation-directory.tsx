@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  BarChart3,
   Building2,
   ChevronRight,
   ExternalLink,
@@ -326,6 +327,7 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
       </header>
       <aside className="side-rail" aria-label="Navegação principal">
         <button aria-label="Voltar ao dashboard" className="rail-button" onClick={() => go("/")} title="Painel de leads" type="button"><LayoutDashboard size={19} /></button>
+        <button aria-label="Google Ads" className="rail-button" onClick={() => go("/google-ads")} title="Google Ads" type="button"><BarChart3 size={19} /></button>
         <button aria-label="PME e reativação" className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="PME e reativação" type="button"><Building2 size={19} /></button>
         <button aria-label="Saúde das contas" className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button>
       </aside>

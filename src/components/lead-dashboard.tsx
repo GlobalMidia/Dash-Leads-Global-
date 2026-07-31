@@ -504,6 +504,10 @@ export function LeadDashboard({
     window.location.assign("/meta-ads");
   }
 
+  function goToGoogleAds() {
+    window.location.assign("/google-ads");
+  }
+
   function goToDashboardTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1105,6 +1109,15 @@ export function LeadDashboard({
           className="rail-button"
           onClick={goToMetaAds}
           title="Meta Ads"
+          type="button"
+        >
+          <BarChart3 size={19} />
+        </button>
+        <button
+          aria-label="Abrir Google Ads"
+          className="rail-button"
+          onClick={goToGoogleAds}
+          title="Google Ads"
           type="button"
         >
           <BarChart3 size={19} />
