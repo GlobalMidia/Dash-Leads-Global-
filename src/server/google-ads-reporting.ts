@@ -90,7 +90,14 @@ async function listAccessibleCustomers(token: string) {
 
 async function listManagerCustomers(token: string, managerId: string) {
   if (!managerId) return [];
-  const response = await googleRequest<SearchResponse>(token, `customers/${customerId(managerId)}/googleAds:search`, "SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager WHERE customer_client.level <= 1", null);
+  const path = `customers/${customerId(managerId)}/googleAds:search`;
+  const query = "SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager WHERE customer_client.level <= 1";
+  let response: SearchResponse;
+  try {
+    response = await googleRequest<SearchResponse>(token, path, query, null);
+  } catch {
+    response = await googleRequest<SearchResponse>(token, path, query, managerId);
+  }
   return (response.results ?? []).map((row) => String(object(row.customerClient).id ?? "")).filter(Boolean);
 }
 
