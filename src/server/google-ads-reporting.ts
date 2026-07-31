@@ -3,6 +3,7 @@ import "server-only";
 import type { GoogleAdsAccount, GoogleAdsCampaign, GoogleAdsDashboardData, GoogleAdsPeriod } from "@/types/google-ads";
 
 const GOOGLE_ADS_BASE = "https://googleads.googleapis.com";
+const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642"]);
 
 function env(name: string) {
   const value = process.env[name]?.trim();
@@ -127,7 +128,7 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
   if (!isGoogleAdsConfigured()) return { configured: false, accounts: [], period, lastUpdated: null, error: "As variáveis do Google Ads ainda não foram configuradas." };
   try {
     const token = await accessToken();
-    const ids = await listAccessibleCustomers(token);
+    const ids = (await listAccessibleCustomers(token)).filter((id) => !IGNORED_CUSTOMER_IDS.has(id));
     const results = await Promise.all(ids.map(async (id) => {
       try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
