@@ -13,7 +13,7 @@ const CORPORATE_ACCOUNT_NAMES: Record<string, string> = {
   "9365903268": "Programa Mundo Empresarial", "5977068915": "Ravache", "2894322643": "Rodotransfer",
   "4428811998": "WATERTEC", "8774195660": "WoodWise", "9307818411": "teste",
 };
-const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642", "7217008929", "8464193409"]);
+const IGNORED_CUSTOMER_IDS = new Set(["1089620346", "1163150537", "1928102954", "9552946642", "7217008929", "8464193409", "2151728262", "7412484344", "9307818411", "4428811998"]);
 
 function env(name: string) {
   const value = process.env[name]?.trim();
