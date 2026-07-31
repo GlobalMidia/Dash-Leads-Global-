@@ -132,8 +132,7 @@ export async function getGoogleAdsDashboardData(input: Partial<GoogleAdsPeriod> 
     const results = await Promise.all(ids.map(async (id) => {
       try { return await accountReport(token, id, period); } catch (error) { return { id, name: `Conta ${id}`, currency: "BRL", timeZone: "", manager: false, campaigns: [], spend: 0, impressions: 0, clicks: 0, conversions: 0, syncedAt: null, error: readableError(error) }; }
     }));
-    const visibleAccounts = results.filter((account) => !account.error?.startsWith("Sem permissão"));
-    return { configured: true, accounts: visibleAccounts.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
+    return { configured: true, accounts: results.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), period, lastUpdated: new Date().toISOString(), error: null };
   } catch (error) {
     return { configured: true, accounts: [], period, lastUpdated: null, error: readableError(error) };
   }
