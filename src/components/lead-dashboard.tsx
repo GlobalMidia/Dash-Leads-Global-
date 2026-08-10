@@ -507,6 +507,9 @@ export function LeadDashboard({
   function goToGoogleAds() {
     window.location.assign("/google-ads");
   }
+  function goToGa4() {
+    window.location.assign("/ga4");
+  }
 
   function goToDashboardTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1120,6 +1123,9 @@ export function LeadDashboard({
           title="Google Ads"
           type="button"
         >
+          <BarChart3 size={19} />
+        </button>
+        <button aria-label="Abrir Google Analytics 4" className="rail-button" onClick={goToGa4} title="Google Analytics 4" type="button">
           <BarChart3 size={19} />
         </button>
         <button

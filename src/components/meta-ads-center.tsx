@@ -147,6 +147,7 @@ export function MetaAdsCenter({ mode, user, initialData, canManage }: Props) {
       <button className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button>
       <button className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="Meta Ads" type="button"><BarChart3 size={19} /></button>
       <button className="rail-button" onClick={() => go("/google-ads")} title="Google Ads" type="button"><BarChart3 size={19} /></button>
+      <button className="rail-button" onClick={() => go("/ga4")} title="Google Analytics 4" type="button"><BarChart3 size={19} /></button>
     </aside>
     <main className="dashboard-main meta-ads-main">
       <section className="meta-ads-hero">

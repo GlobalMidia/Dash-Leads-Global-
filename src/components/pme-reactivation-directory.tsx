@@ -331,6 +331,7 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
         <button aria-label="Saúde das contas" className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button>
         <button aria-label="Meta Ads" className="rail-button" onClick={() => go("/meta-ads")} title="Meta Ads" type="button"><BarChart3 size={19} /></button>
         <button aria-label="Google Ads" className="rail-button" onClick={() => go("/google-ads")} title="Google Ads" type="button"><BarChart3 size={19} /></button>
+        <button aria-label="Google Analytics 4" className="rail-button" onClick={() => go("/ga4")} title="Google Analytics 4" type="button"><BarChart3 size={19} /></button>
       </aside>
 
       <main className="dashboard-main pme-directory">
