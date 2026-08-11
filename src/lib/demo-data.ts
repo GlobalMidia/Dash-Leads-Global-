@@ -1,6 +1,6 @@
 import type { Lead } from "@/types/lead";
 
-export const DEMO_LEADS: Lead[] = [
+const DEMO_LEADS_WITHOUT_PROJECT: Omit<Lead, "projectUnit">[] = [
   {
     id: "demo-001",
     rdUuid: null,
@@ -287,3 +287,8 @@ export const DEMO_LEADS: Lead[] = [
     ],
   },
 ];
+
+export const DEMO_LEADS: Lead[] = DEMO_LEADS_WITHOUT_PROJECT.map((lead) => ({
+  ...lead,
+  projectUnit: "unidentified",
+}));

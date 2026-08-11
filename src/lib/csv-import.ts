@@ -270,6 +270,7 @@ export function parseLeadCsv(text: string, existingLeads: Lead[]): CsvImportResu
       email: record.email,
       phone: record.phone,
       origin: record.origin,
+      projectUnit: "unidentified" as const,
       enteredAt: record.enteredAt,
       status: record.status,
       notes: record.notes,

@@ -11,9 +11,11 @@ import {
 import { normalizeLeadOrigin, type LeadOrigin } from "@/lib/lead-origin";
 import { getSql } from "@/server/db";
 import {
+  PROJECT_UNIT_LABELS,
   STATUS_LABELS,
   type Lead,
   type LeadHistoryEvent,
+  type LeadProjectUnit,
   type LeadStatus,
 } from "@/types/lead";
 
@@ -31,6 +33,7 @@ export type AuditActor = {
 export type LeadPatch = {
   status?: LeadStatus;
   origin?: LeadOrigin;
+  projectUnit?: LeadProjectUnit;
   companyProfileUrl?: string;
   notes?: string;
 };
@@ -94,6 +97,7 @@ function mapRow(row: DatabaseRow): Lead {
     email: row.email ? String(row.email) : "",
     phone: row.phone ? String(row.phone) : "",
     origin: normalizeLeadOrigin(row.origin ? String(row.origin) : ""),
+    projectUnit: String(row.project_unit ?? "unidentified") as LeadProjectUnit,
     enteredAt: new Date(String(row.entered_at)).toISOString(),
     status: String(row.status) as LeadStatus,
     notes: row.notes ? String(row.notes) : "",
@@ -193,16 +197,51 @@ export async function updateLead(
   const sql = getSql();
   const status = patch.status ?? null;
   const origin = patch.origin ?? null;
+  const projectUnit = patch.projectUnit ?? null;
   const companyProfileUrl = patch.companyProfileUrl ?? null;
   const notes = patch.notes ?? null;
-  const title = patch.status
-    ? "Qualificação alterada"
-    : "Observação atualizada";
-  const description = patch.status
-    ? `O lead foi marcado como ${STATUS_LABELS[patch.status].toLocaleLowerCase("pt-BR")}.`
-    : patch.notes
-      ? "O conteúdo das observações foi atualizado."
-      : "As observações do lead foram removidas.";
+  const changedFields = [
+    patch.status !== undefined ? "status" : null,
+    patch.origin !== undefined ? "origin" : null,
+    patch.projectUnit !== undefined ? "projectUnit" : null,
+    patch.companyProfileUrl !== undefined ? "companyProfileUrl" : null,
+    patch.notes !== undefined ? "notes" : null,
+  ].filter(Boolean);
+  const action = changedFields.length > 1
+    ? "lead.details_updated"
+    : patch.status !== undefined
+      ? "lead.status_updated"
+      : patch.origin !== undefined
+        ? "lead.origin_updated"
+        : patch.projectUnit !== undefined
+          ? "lead.project_unit_updated"
+          : patch.companyProfileUrl !== undefined
+            ? "lead.company_profile_updated"
+            : "lead.notes_updated";
+  const title = changedFields.length > 1
+    ? "Detalhes atualizados"
+    : patch.status !== undefined
+      ? "Qualificação alterada"
+      : patch.origin !== undefined
+        ? "Origem atualizada"
+        : patch.projectUnit !== undefined
+          ? "Projeto/Unidade atualizado"
+          : patch.companyProfileUrl !== undefined
+            ? "Perfil profissional atualizado"
+            : "Observação atualizada";
+  const description = changedFields.length > 1
+    ? "Os dados complementares do lead foram atualizados."
+    : patch.status !== undefined
+      ? `O lead foi marcado como ${STATUS_LABELS[patch.status].toLocaleLowerCase("pt-BR")}.`
+      : patch.origin !== undefined
+        ? `A origem foi alterada para ${patch.origin}.`
+        : patch.projectUnit !== undefined
+          ? `O lead foi classificado em ${PROJECT_UNIT_LABELS[patch.projectUnit]}.`
+          : patch.companyProfileUrl !== undefined
+            ? "O link profissional da empresa foi atualizado."
+            : patch.notes
+              ? "O conteúdo das observações foi atualizado."
+              : "As observações do lead foram removidas.";
 
   const rows = (await sql`
     WITH previous AS MATERIALIZED (
@@ -216,6 +255,7 @@ export async function updateLead(
       SET
         status = COALESCE(${status}, status),
         origin = COALESCE(${origin}, origin),
+        project_unit = COALESCE(${projectUnit}, project_unit),
         company_profile_url = COALESCE(${companyProfileUrl}, company_profile_url),
         notes = COALESCE(${notes}, notes),
         updated_at = NOW()
@@ -236,7 +276,7 @@ export async function updateLead(
       SELECT
         ${actor.userId ?? null}::uuid,
         ${actor.email ?? null},
-        ${patch.status ? "lead.status_updated" : patch.origin ? "lead.origin_updated" : patch.companyProfileUrl !== undefined ? "lead.company_profile_updated" : "lead.notes_updated"},
+        ${action},
         'lead',
         updated.id::text,
         to_jsonb(previous),

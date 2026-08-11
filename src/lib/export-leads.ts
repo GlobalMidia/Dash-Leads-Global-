@@ -1,4 +1,4 @@
-import { STATUS_LABELS, type Lead } from "@/types/lead";
+import { PROJECT_UNIT_LABELS, STATUS_LABELS, type Lead } from "@/types/lead";
 
 function escapeCsv(value: string | number) {
   const normalized = String(value).replace(/\r?\n/g, " ").trim();
@@ -15,6 +15,7 @@ export function leadsToCsv(leads: Lead[]) {
     "E-mail",
     "Telefone",
     "Origem",
+    "Projeto/Unidade",
     "Data de entrada",
     "Qualificação",
     "Observações",
@@ -26,6 +27,7 @@ export function leadsToCsv(leads: Lead[]) {
     lead.email,
     lead.phone,
     lead.origin,
+    PROJECT_UNIT_LABELS[lead.projectUnit],
     new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "short",
       timeStyle: "short",

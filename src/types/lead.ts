@@ -8,6 +8,15 @@ export const LEAD_STATUSES = [
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+export const LEAD_PROJECT_UNITS = [
+  "global",
+  "pme",
+  "other",
+  "unidentified",
+] as const;
+
+export type LeadProjectUnit = (typeof LEAD_PROJECT_UNITS)[number];
+
 export type LeadSource = {
   type: "rd" | "csv" | "manual" | "meta";
   label: string;
@@ -34,6 +43,7 @@ export type Lead = {
   email: string;
   phone: string;
   origin: string;
+  projectUnit: LeadProjectUnit;
   enteredAt: string;
   status: LeadStatus;
   notes: string;
@@ -43,6 +53,13 @@ export type Lead = {
   duplicateStatus?: "potential" | "confirmed";
   additionalData?: Record<string, string>;
   history?: LeadHistoryEvent[];
+};
+
+export const PROJECT_UNIT_LABELS: Record<LeadProjectUnit, string> = {
+  global: "Global",
+  pme: "PME",
+  other: "Outras campanhas",
+  unidentified: "Não identificado",
 };
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {

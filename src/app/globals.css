@@ -830,7 +830,7 @@ select:disabled {
 
 .filter-panel {
   display: grid;
-  grid-template-columns: minmax(250px, 1.8fr) repeat(2, minmax(145px, 0.8fr)) repeat(2, minmax(130px, 0.66fr)) auto;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(125px, 0.75fr)) repeat(2, minmax(110px, 0.6fr)) auto;
   align-items: end;
   gap: 10px;
   margin-top: 18px;
@@ -1971,6 +1971,24 @@ td {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+}
+
+.details-project-unit-row select {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #dfe5ee;
+  border-radius: 7px;
+  outline: none;
+  color: #445168;
+  background: #fafbfd;
+  padding: 5px 28px 5px 8px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.details-project-unit-row select:focus {
+  border-color: #9ec4fb;
+  box-shadow: 0 0 0 3px rgb(47 125 244 / 8%);
 }
 
 .notes-field {
@@ -4331,6 +4349,7 @@ td {
     .filter-search,
     .filter-control select,
     .filter-control input,
+    .details-project-unit-row select,
     .notes-field textarea,
     .theme-options label,
     .text-size-options label,
@@ -4442,6 +4461,7 @@ td {
     .filter-search input,
     .filter-control select,
     .filter-control input,
+    .details-project-unit-row select,
     .notes-field textarea
   ) {
   color: #e8eef8;
@@ -4633,11 +4653,11 @@ td {
 
 @media (max-width: 1180px) {
   .filter-panel {
-    grid-template-columns: minmax(230px, 1.4fr) repeat(2, 1fr) repeat(2, 0.8fr);
+    grid-template-columns: minmax(220px, 1.3fr) repeat(3, 1fr) repeat(2, 0.8fr);
   }
 
   .clear-filter {
-    grid-column: 5;
+    grid-column: 6;
     justify-self: end;
     height: 20px;
   }
@@ -4872,7 +4892,8 @@ td {
 
   .filter-search,
   .filter-control:nth-of-type(1),
-  .filter-control:nth-of-type(2) {
+  .filter-control:nth-of-type(2),
+  .filter-control:nth-of-type(3) {
     grid-column: 1 / -1;
   }
 

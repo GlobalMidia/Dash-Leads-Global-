@@ -1,5 +1,8 @@
 # Dashboard de Leads — Global Mídia
 
+O funcionamento das telas, campos e integrações, junto ao histórico de mudanças,
+está documentado em [`GUIA-DO-DASHBOARD.md`](GUIA-DO-DASHBOARD.md).
+
 Painel comercial em página única para acompanhar leads, empresas, contatos,
 origem, data de entrada e qualificação. O projeto foi preparado para Next.js 16, Vercel,
 Postgres e RD Station Marketing.

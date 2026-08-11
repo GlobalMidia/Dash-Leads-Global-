@@ -6,12 +6,13 @@ import {
 } from "@/server/dashboard-auth";
 import { updateLead } from "@/server/lead-repository";
 import { LEAD_ORIGINS } from "@/lib/lead-origin";
-import { LEAD_STATUSES } from "@/types/lead";
+import { LEAD_PROJECT_UNITS, LEAD_STATUSES } from "@/types/lead";
 
 const schema = z
   .object({
     status: z.enum(LEAD_STATUSES).optional(),
     origin: z.enum(LEAD_ORIGINS).optional(),
+    projectUnit: z.enum(LEAD_PROJECT_UNITS).optional(),
     companyProfileUrl: z
       .string()
       .trim()
@@ -26,6 +27,8 @@ const schema = z
     (value) =>
       value.status !== undefined ||
       value.origin !== undefined ||
+      value.projectUnit !== undefined ||
+      value.companyProfileUrl !== undefined ||
       value.notes !== undefined,
   );
 

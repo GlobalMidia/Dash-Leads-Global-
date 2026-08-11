@@ -1,8 +1,9 @@
-import type { Lead, LeadStatus } from "@/types/lead";
+import type { Lead, LeadProjectUnit, LeadStatus } from "@/types/lead";
 
 export type DashboardFilters = {
   query: string;
   origin: string;
+  projectUnit: "all" | LeadProjectUnit;
   status: "all" | LeadStatus;
   startDate: string;
   endDate: string;
@@ -28,6 +29,7 @@ export function filterLeads(leads: Lead[], filters: DashboardFilters) {
     return (
       matchesQuery &&
       (filters.origin === "all" || lead.origin === filters.origin) &&
+      (filters.projectUnit === "all" || lead.projectUnit === filters.projectUnit) &&
       (filters.status === "all" || lead.status === filters.status) &&
       (!start || enteredAt >= start) &&
       (!end || enteredAt <= end)

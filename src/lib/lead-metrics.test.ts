@@ -14,6 +14,7 @@ describe("lead metrics", () => {
     const result = filterLeads(DEMO_LEADS, {
       query: "mariana",
       origin: "all",
+      projectUnit: "all",
       status: "qualified",
       startDate: "",
       endDate: "",
@@ -25,11 +26,25 @@ describe("lead metrics", () => {
     const result = filterLeads(DEMO_LEADS, {
       query: "Vértice Arquitetura",
       origin: "all",
+      projectUnit: "all",
       status: "all",
       startDate: "",
       endDate: "",
     });
     expect(result.map((lead) => lead.name)).toEqual(["Camila Ferreira"]);
+  });
+
+  it("filters by project or business unit", () => {
+    const result = filterLeads(DEMO_LEADS, {
+      query: "",
+      origin: "all",
+      projectUnit: "global",
+      status: "all",
+      startDate: "",
+      endDate: "",
+    });
+
+    expect(result).toHaveLength(0);
   });
 
   it("sorts origins by descending lead count", () => {

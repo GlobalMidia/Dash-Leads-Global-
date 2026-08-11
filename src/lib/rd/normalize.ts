@@ -347,6 +347,7 @@ export function normalizeRdContact(input: unknown): Lead | null {
     origin: normalizeLeadOrigin(
       rawOrigin,
     ),
+    projectUnit: "unidentified",
     enteredAt,
     status,
     notes: "",

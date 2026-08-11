@@ -53,10 +53,13 @@ import {
   type DashboardFilters,
 } from "@/lib/lead-metrics";
 import {
+  LEAD_PROJECT_UNITS,
   LEAD_STATUSES,
+  PROJECT_UNIT_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
   type Lead,
+  type LeadProjectUnit,
   type LeadStatus,
 } from "@/types/lead";
 
@@ -76,6 +79,7 @@ type DashboardProps = {
 const DEFAULT_FILTERS: DashboardFilters = {
   query: "",
   origin: "all",
+  projectUnit: "all",
   status: "all",
   startDate: "",
   endDate: "",
@@ -400,6 +404,7 @@ export function LeadDashboard({
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [companyProfileDraft, setCompanyProfileDraft] = useState("");
+  const [projectUnitDraft, setProjectUnitDraft] = useState<LeadProjectUnit>("unidentified");
   const [savingNotes, setSavingNotes] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -494,6 +499,7 @@ export function LeadDashboard({
     setSelectedLeadId(lead.id);
     setNotesDraft(lead.notes);
     setCompanyProfileDraft(lead.companyProfileUrl ?? "");
+    setProjectUnitDraft(lead.projectUnit);
     setDetailsTab("details");
     if (mode === "live" && lead.rdUuid && shouldRefreshRdDetails(lead)) {
       void loadRdDetailsForLead(lead.id);
@@ -581,6 +587,7 @@ export function LeadDashboard({
     const before = leads;
     const notes = notesDraft.trim();
     const companyProfileUrl = companyProfileDraft.trim();
+    const projectUnit = projectUnitDraft;
     if (companyProfileUrl && !/^https?:\/\/[^\s]+$/i.test(companyProfileUrl)) {
       setNotice("O link da empresa deve começar com http:// ou https://.");
       return;
@@ -593,12 +600,13 @@ export function LeadDashboard({
               ...lead,
               notes,
               companyProfileUrl,
+              projectUnit,
               updatedAt: occurredAt,
               history: [
                 {
                   id: `notes-${occurredAt}`,
                   title: "Detalhes atualizados",
-                  description: "As observações e o link profissional da empresa foram atualizados.",
+                  description: `Observações, perfil profissional e Projeto/Unidade foram atualizados para ${PROJECT_UNIT_LABELS[projectUnit]}.`,
                   actor: user.name,
                   actorEmail: user.email,
                   occurredAt,
@@ -623,14 +631,14 @@ export function LeadDashboard({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notes, companyProfileUrl }),
+          body: JSON.stringify({ notes, companyProfileUrl, projectUnit }),
         },
       );
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
         throw new Error(data.error ?? "Falha ao salvar a observação.");
       }
-      setNotice("Observação salva.");
+      setNotice("Detalhes do lead salvos.");
       setSelectedLeadId(null);
     } catch (error) {
       setLeads(before);
@@ -961,6 +969,7 @@ export function LeadDashboard({
         email: record.email,
         phone: record.phone,
         origin: record.origin,
+        projectUnit: "unidentified",
         enteredAt: record.enteredAt,
         status: record.status,
         notes: record.notes,
@@ -1282,6 +1291,25 @@ export function LeadDashboard({
               {origins.map((origin) => (
                 <option key={origin} value={origin}>
                   {origin}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="filter-control">
+            <span>Projeto/Unidade</span>
+            <select
+              onChange={(event) =>
+                updateFilter(
+                  "projectUnit",
+                  event.target.value as DashboardFilters["projectUnit"],
+                )
+              }
+              value={filters.projectUnit}
+            >
+              <option value="all">Todos os projetos</option>
+              {LEAD_PROJECT_UNITS.map((projectUnit) => (
+                <option key={projectUnit} value={projectUnit}>
+                  {PROJECT_UNIT_LABELS[projectUnit]}
                 </option>
               ))}
             </select>
@@ -1908,6 +1936,22 @@ export function LeadDashboard({
                     <span>Origem</span>
                     <strong className="origin-detail-value"><OriginMark origin={selectedLead.origin} />{selectedLead.origin}</strong>
                   </div>
+                  <div className="details-project-unit-row">
+                    <span>Projeto/Unidade</span>
+                    <select
+                      aria-label="Projeto ou unidade do lead"
+                      onChange={(event) =>
+                        setProjectUnitDraft(event.target.value as LeadProjectUnit)
+                      }
+                      value={projectUnitDraft}
+                    >
+                      {LEAD_PROJECT_UNITS.map((projectUnit) => (
+                        <option key={projectUnit} value={projectUnit}>
+                          {PROJECT_UNIT_LABELS[projectUnit]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <span>Data de entrada</span>
                     <strong>{formatDate(selectedLead.enteredAt)}</strong>
@@ -2120,7 +2164,7 @@ export function LeadDashboard({
                   onClick={handleSaveNotes}
                   type="button"
                 >
-                  {savingNotes ? "Salvando..." : "Salvar observação"}
+                  {savingNotes ? "Salvando..." : "Salvar detalhes"}
                 </button>
               )}
             </footer>
