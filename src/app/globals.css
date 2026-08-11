@@ -1512,6 +1512,8 @@ td {
   font-weight: 650;
 }
 
+.origin-mark { display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; flex:0 0 auto; border-radius:50%; color:#fff; background:#64748b; font-size:8px; font-weight:900; letter-spacing:-.04em; }.origin-mark-meta { background:#1877f2; }.origin-mark-google { background:#4285f4; }.origin-mark-organic { background:#10a37f; }.origin-mark-recommendation { background:#8b5cf6; }.origin-mark-rd { background:#f97316; }.origin-mark-unknown { background:#94a3b8; }.origin-detail-value { display:inline-flex; align-items:center; gap:6px; }
+
 .company-profile-field input {
   width: 100%;
   border: 1px solid #e1e6ee;

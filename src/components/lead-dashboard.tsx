@@ -331,6 +331,7 @@ function OriginSelect({
 }) {
   return (
     <label className="origin-select">
+      <OriginMark origin={origin} />
       <select
         aria-label="Alterar origem do lead"
         disabled={disabled}
@@ -345,6 +346,13 @@ function OriginSelect({
       </select>
     </label>
   );
+}
+
+function OriginMark({ origin }: { origin: string }) {
+  const key = origin.toLowerCase();
+  const variant = key.includes("meta") ? "meta" : key.includes("google") ? "google" : key.includes("recom") ? "recommendation" : key.includes("rd") ? "rd" : key.includes("org") ? "organic" : "unknown";
+  const mark = variant === "meta" ? "M" : variant === "google" ? "G" : variant === "recommendation" ? "R" : variant === "rd" ? "RD" : variant === "organic" ? "O" : "?";
+  return <span aria-hidden="true" className={`origin-mark origin-mark-${variant}`}>{mark}</span>;
 }
 
 function Logo() {
@@ -1898,7 +1906,7 @@ export function LeadDashboard({
                   </div>
                   <div>
                     <span>Origem</span>
-                    <strong>{selectedLead.origin}</strong>
+                    <strong className="origin-detail-value"><OriginMark origin={selectedLead.origin} />{selectedLead.origin}</strong>
                   </div>
                   <div>
                     <span>Data de entrada</span>
