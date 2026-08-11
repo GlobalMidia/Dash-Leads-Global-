@@ -1,8 +1,7 @@
 import "server-only";
 
-import { getSql } from "@/server/db";
 import { loadStoredGa4Tokens } from "@/server/ga4-oauth";
-import type { Ga4Property } from "@/types/ga4";
+import type { Ga4Property, Ga4Report } from "@/types/ga4";
 
 type TokenResponse = { access_token?: string; expires_in?: number };
 type AccountSummariesResponse = {
@@ -11,6 +10,10 @@ type AccountSummariesResponse = {
     displayName?: string;
     propertySummaries?: Array<{ property?: string; displayName?: string }>;
   }>;
+};
+type RunReportResponse = {
+  rows?: Array<{ dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> }>;
+  totals?: Array<{ metricValues?: Array<{ value?: string }> }>;
 };
 
 function required(name: string) {
@@ -51,4 +54,37 @@ export async function getGa4Properties(): Promise<{ connected: boolean; properti
   } catch (error) {
     return { connected: true, properties: [], error: error instanceof Error ? error.message : "Não foi possível consultar as propriedades do GA4." };
   }
+}
+
+function reportNumber(value: string | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export async function getGa4Report(propertyId: string, startDate: string, endDate: string): Promise<Ga4Report> {
+  if (!/^\d+$/.test(propertyId)) throw new Error("Propriedade do GA4 inválida.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) throw new Error("Período do GA4 inválido.");
+  const token = await accessToken();
+  if (!token) throw new Error("Conecte o Google Analytics antes de consultar relatórios.");
+  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+  const base = { dateRanges: [{ startDate, endDate }] };
+  const run = async (dimensions: string[], metrics: string[], limit = "1000") => {
+    const response = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...base, dimensions: dimensions.map((name) => ({ name })), metrics: metrics.map((name) => ({ name })), limit }), cache: "no-store" });
+    if (!response.ok) throw new Error(`Google Analytics respondeu ${response.status} ao consultar a propriedade.`);
+    return (await response.json()) as RunReportResponse;
+  };
+  const [overview, channels, dates] = await Promise.all([
+    run([], ["activeUsers", "sessions", "conversions", "eventCount"], "1"),
+    run(["sessionDefaultChannelGroup"], ["sessions", "conversions"], "100"),
+    run(["date"], ["activeUsers", "sessions", "conversions"], "1000"),
+  ]);
+  const totalValues = overview.totals?.[0]?.metricValues ?? overview.rows?.[0]?.metricValues ?? [];
+  return {
+    propertyId,
+    startDate,
+    endDate,
+    totals: { activeUsers: reportNumber(totalValues[0]?.value), sessions: reportNumber(totalValues[1]?.value), conversions: reportNumber(totalValues[2]?.value), eventCount: reportNumber(totalValues[3]?.value) },
+    byChannel: (channels.rows ?? []).map((row) => ({ channel: row.dimensionValues?.[0]?.value || "(não definido)", sessions: reportNumber(row.metricValues?.[0]?.value), conversions: reportNumber(row.metricValues?.[1]?.value) })),
+    byDate: (dates.rows ?? []).map((row) => ({ date: row.dimensionValues?.[0]?.value || "", activeUsers: reportNumber(row.metricValues?.[0]?.value), sessions: reportNumber(row.metricValues?.[1]?.value), conversions: reportNumber(row.metricValues?.[2]?.value) })),
+  };
 }
