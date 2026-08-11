@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, BarChart3, Building2, CalendarDays, HeartPulse, LayoutDashboard, LoaderCircle, RefreshCw, Search, X } from "lucide-react";
+import { Archive, ArchiveRestore, BarChart3, Building2, CalendarDays, HeartPulse, LayoutDashboard, LoaderCircle, RefreshCw, Search, Settings2, SlidersHorizontal, Users, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import type { MetaAdsAccount, MetaAdsDashboardData } from "@/types/meta-ads";
@@ -147,7 +147,7 @@ export function MetaAdsCenter({ mode, user, initialData, canManage }: Props) {
       <button className="rail-button" onClick={() => go("/health")} title="Saúde das contas" type="button"><HeartPulse size={19} /></button>
       <button className="rail-button active" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} title="Meta Ads" type="button"><BarChart3 size={19} /></button>
       <button className="rail-button" onClick={() => go("/google-ads")} title="Google Ads" type="button"><BarChart3 size={19} /></button>
-      <button className="rail-button" onClick={() => go("/ga4")} title="Google Analytics 4" type="button"><BarChart3 size={19} /></button>
+      <button className="rail-button" onClick={() => go("/ga4")} title="Google Analytics 4" type="button"><BarChart3 size={19} /></button><button className="rail-button" onClick={() => go("/#leads-table")} title="Leads" type="button"><Users size={19} /></button><button className="rail-button" onClick={() => go("/#filters")} title="Filtros" type="button"><SlidersHorizontal size={19} /></button><div className="rail-spacer" /><button className="rail-button" onClick={() => go("/")} title="Preferências" type="button"><Settings2 size={19} /></button><button className="rail-avatar" onClick={() => go("/")} title="Perfil" type="button">{user.initials}</button>
     </aside>
     <main className="dashboard-main meta-ads-main">
       <section className="meta-ads-hero">

@@ -13,6 +13,8 @@ import {
   LayoutDashboard,
   LoaderCircle,
   Search,
+  Settings2,
+  SlidersHorizontal,
   Trash2,
   Upload,
   Users,
@@ -332,6 +334,11 @@ export function PmeReactivationDirectory({ mode, user, initialDirectory }: PmeRe
         <button aria-label="Meta Ads" className="rail-button" onClick={() => go("/meta-ads")} title="Meta Ads" type="button"><BarChart3 size={19} /></button>
         <button aria-label="Google Ads" className="rail-button" onClick={() => go("/google-ads")} title="Google Ads" type="button"><BarChart3 size={19} /></button>
         <button aria-label="Google Analytics 4" className="rail-button" onClick={() => go("/ga4")} title="Google Analytics 4" type="button"><BarChart3 size={19} /></button>
+        <button aria-label="Leads" className="rail-button" onClick={() => go("/#leads-table")} title="Leads" type="button"><Users size={19} /></button>
+        <button aria-label="Filtros" className="rail-button" onClick={() => go("/#filters")} title="Filtros" type="button"><SlidersHorizontal size={19} /></button>
+        <div className="rail-spacer" />
+        <button aria-label="Preferências" className="rail-button" onClick={() => go("/")} title="Preferências" type="button"><Settings2 size={19} /></button>
+        <button aria-label="Perfil" className="rail-avatar" onClick={() => go("/")} title="Perfil" type="button">{user.initials}</button>
       </aside>
 
       <main className="dashboard-main pme-directory">
