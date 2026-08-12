@@ -17,6 +17,7 @@ import {
   type LeadHistoryEvent,
   type LeadProjectUnit,
   type LeadStatus,
+  type LeadTemperature,
 } from "@/types/lead";
 
 type LeadInput = Omit<Lead, "id" | "updatedAt"> & {
@@ -34,6 +35,7 @@ export type LeadPatch = {
   status?: LeadStatus;
   origin?: LeadOrigin;
   projectUnit?: LeadProjectUnit;
+  temperature?: LeadTemperature;
   companyProfileUrl?: string;
   notes?: string;
 };
@@ -81,7 +83,8 @@ function mapRow(row: DatabaseRow): Lead {
     | "rd"
     | "csv"
     | "manual"
-    | "meta";
+    | "meta"
+    | "site";
   const sourceFile = row.import_file_name
     ? String(row.import_file_name)
     : undefined;
@@ -100,6 +103,9 @@ function mapRow(row: DatabaseRow): Lead {
     projectUnit: String(row.project_unit ?? "unidentified") as LeadProjectUnit,
     enteredAt: new Date(String(row.entered_at)).toISOString(),
     status: String(row.status) as LeadStatus,
+    temperature: row.lead_temperature
+      ? (String(row.lead_temperature) as LeadTemperature)
+      : undefined,
     notes: row.notes ? String(row.notes) : "",
     updatedAt: new Date(String(row.updated_at)).toISOString(),
     source: {
@@ -111,7 +117,9 @@ function mapRow(row: DatabaseRow): Lead {
             : sourceType === "csv"
               ? "Importação CSV"
               : sourceType === "meta"
-                ? "Meta Lead Ads"
+              ? "Meta Lead Ads"
+              : sourceType === "site"
+                ? "Site da Global"
               : "Cadastro manual"),
       ),
       fileName: sourceFile,
@@ -198,12 +206,14 @@ export async function updateLead(
   const status = patch.status ?? null;
   const origin = patch.origin ?? null;
   const projectUnit = patch.projectUnit ?? null;
+  const temperature = patch.temperature ?? null;
   const companyProfileUrl = patch.companyProfileUrl ?? null;
   const notes = patch.notes ?? null;
   const changedFields = [
     patch.status !== undefined ? "status" : null,
     patch.origin !== undefined ? "origin" : null,
     patch.projectUnit !== undefined ? "projectUnit" : null,
+    patch.temperature !== undefined ? "temperature" : null,
     patch.companyProfileUrl !== undefined ? "companyProfileUrl" : null,
     patch.notes !== undefined ? "notes" : null,
   ].filter(Boolean);
@@ -215,6 +225,8 @@ export async function updateLead(
         ? "lead.origin_updated"
         : patch.projectUnit !== undefined
           ? "lead.project_unit_updated"
+          : patch.temperature !== undefined
+            ? "lead.temperature_updated"
           : patch.companyProfileUrl !== undefined
             ? "lead.company_profile_updated"
             : "lead.notes_updated";
@@ -226,6 +238,8 @@ export async function updateLead(
         ? "Origem atualizada"
         : patch.projectUnit !== undefined
           ? "Projeto/Unidade atualizado"
+          : patch.temperature !== undefined
+            ? "Temperatura comercial atualizada"
           : patch.companyProfileUrl !== undefined
             ? "Perfil profissional atualizado"
             : "Observação atualizada";
@@ -237,6 +251,8 @@ export async function updateLead(
         ? `A origem foi alterada para ${patch.origin}.`
         : patch.projectUnit !== undefined
           ? `O lead foi classificado em ${PROJECT_UNIT_LABELS[patch.projectUnit]}.`
+          : patch.temperature !== undefined
+            ? `A classificação final foi alterada para ${patch.temperature === "hot" ? "quente" : patch.temperature === "warm" ? "morno" : "frio"}.`
           : patch.companyProfileUrl !== undefined
             ? "O link profissional da empresa foi atualizado."
             : patch.notes
@@ -256,6 +272,7 @@ export async function updateLead(
         status = COALESCE(${status}, status),
         origin = COALESCE(${origin}, origin),
         project_unit = COALESCE(${projectUnit}, project_unit),
+        lead_temperature = COALESCE(${temperature}, lead_temperature),
         company_profile_url = COALESCE(${companyProfileUrl}, company_profile_url),
         notes = COALESCE(${notes}, notes),
         updated_at = NOW()

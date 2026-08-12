@@ -13,6 +13,7 @@ const schema = z
     status: z.enum(LEAD_STATUSES).optional(),
     origin: z.enum(LEAD_ORIGINS).optional(),
     projectUnit: z.enum(LEAD_PROJECT_UNITS).optional(),
+    temperature: z.enum(["cold", "warm", "hot"]).optional(),
     companyProfileUrl: z
       .string()
       .trim()
@@ -28,6 +29,7 @@ const schema = z
       value.status !== undefined ||
       value.origin !== undefined ||
       value.projectUnit !== undefined ||
+      value.temperature !== undefined ||
       value.companyProfileUrl !== undefined ||
       value.notes !== undefined,
   );

@@ -28,6 +28,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Target,
+  ThermometerSun,
   Upload,
   UserCheck,
   Users,
@@ -45,6 +46,7 @@ import { neonAuthClient } from "@/lib/neon-auth-client";
 import { normalizeCompany } from "@/lib/lead-normalization";
 import { LEAD_ORIGINS } from "@/lib/lead-origin";
 import { leadsToCsv } from "@/lib/export-leads";
+import type { SiteJourney, SiteEventName } from "@/lib/site-journey";
 import {
   filterLeads,
   groupByDay,
@@ -61,6 +63,7 @@ import {
   type Lead,
   type LeadProjectUnit,
   type LeadStatus,
+  type LeadTemperature,
 } from "@/types/lead";
 
 type DashboardProps = {
@@ -103,7 +106,38 @@ const RD_MANAGED_ADDITIONAL_DATA_KEYS = new Set([
   "rdCrmSalesFunnel",
   "rdCrmQualification",
   "rdCrmOwner",
+  "siteVisitorId",
+  "siteSessionId",
+  "siteLandingPage",
+  "siteProjectUnit",
+  "siteUtmSource",
+  "siteUtmMedium",
+  "siteUtmCampaign",
+  "siteUtmContent",
+  "siteUtmTerm",
+  "siteGclid",
+  "siteFbclid",
 ]);
+const TEMPERATURE_LABELS: Record<LeadTemperature, string> = {
+  cold: "Frio",
+  warm: "Morno",
+  hot: "Quente",
+};
+const SITE_EVENT_LABELS: Record<SiteEventName, string> = {
+  page_view: "Acessou uma página",
+  engagement_30: "Permaneceu 30 segundos",
+  engagement_60: "Permaneceu 60 segundos",
+  scroll_50: "Leu metade da página",
+  scroll_90: "Chegou ao final da página",
+  cta_click: "Clicou em uma chamada",
+  whatsapp_click: "Avançou para o WhatsApp",
+  form_view: "Visualizou o formulário",
+  form_start: "Começou a preencher o formulário",
+  form_submit: "Enviou o formulário",
+  video_start: "Começou um vídeo",
+  video_progress_50: "Assistiu metade do vídeo",
+  video_complete: "Assistiu ao vídeo até o final",
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -136,7 +170,7 @@ function initials(name: string) {
 
 function shouldRefreshRdDetails(lead: Lead) {
   // Contatos enriquecidos antes do mapeamento comercial precisam de uma
-  // consulta Ãºnica para que os campos de oportunidade tambÃ©m sejam gravados.
+  // consulta única para que os campos de oportunidade também sejam gravados.
   if (lead.additionalData?.rdCrmDataMappingVersion !== "4") return true;
   const lastEnrichedAt = lead.additionalData?.rdDetailsEnrichedAt;
   if (!lastEnrichedAt) return true;
@@ -405,11 +439,14 @@ export function LeadDashboard({
   const [notesDraft, setNotesDraft] = useState("");
   const [companyProfileDraft, setCompanyProfileDraft] = useState("");
   const [projectUnitDraft, setProjectUnitDraft] = useState<LeadProjectUnit>("unidentified");
+  const [temperatureDraft, setTemperatureDraft] = useState<LeadTemperature | "">("");
+  const [siteJourney, setSiteJourney] = useState<SiteJourney | null>(null);
+  const [loadingJourney, setLoadingJourney] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [detailsTab, setDetailsTab] = useState<"details" | "history">("details");
+  const [detailsTab, setDetailsTab] = useState<"details" | "journey" | "history">("details");
 
   const origins = useMemo(
     () => [...new Set(leads.map((lead) => lead.origin))].sort(),
@@ -456,14 +493,17 @@ export function LeadDashboard({
   useEffect(() => {
     const integration = new URLSearchParams(window.location.search).get("meta");
     if (!integration) return;
-    setNotice(
-      integration === "connected"
-        ? "Meta Ads conectado à conta corporativa. As contas acessíveis foram registradas."
-        : "Não foi possível concluir a conexão corporativa do Meta Ads.",
-    );
+    const timeout = window.setTimeout(() => {
+      setNotice(
+        integration === "connected"
+          ? "Meta Ads conectado à conta corporativa. As contas acessíveis foram registradas."
+          : "Não foi possível concluir a conexão corporativa do Meta Ads.",
+      );
+    }, 0);
     const url = new URL(window.location.href);
     url.searchParams.delete("meta");
     window.history.replaceState({}, "", url);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
@@ -500,9 +540,26 @@ export function LeadDashboard({
     setNotesDraft(lead.notes);
     setCompanyProfileDraft(lead.companyProfileUrl ?? "");
     setProjectUnitDraft(lead.projectUnit);
+    setTemperatureDraft(lead.temperature ?? "");
+    setSiteJourney(null);
     setDetailsTab("details");
     if (mode === "live" && lead.rdUuid && shouldRefreshRdDetails(lead)) {
       void loadRdDetailsForLead(lead.id);
+    }
+    if (mode === "live") void loadSiteJourneyForLead(lead.id);
+  }
+
+  async function loadSiteJourneyForLead(id: string) {
+    setLoadingJourney(true);
+    try {
+      const response = await fetch(`/api/leads/${encodeURIComponent(id)}/site-journey`);
+      const data = (await response.json()) as { journey?: SiteJourney | null };
+      if (!response.ok) throw new Error("Falha ao consultar a jornada do site.");
+      setSiteJourney(data.journey ?? null);
+    } catch {
+      setSiteJourney(null);
+    } finally {
+      setLoadingJourney(false);
     }
   }
 
@@ -588,6 +645,7 @@ export function LeadDashboard({
     const notes = notesDraft.trim();
     const companyProfileUrl = companyProfileDraft.trim();
     const projectUnit = projectUnitDraft;
+    const temperature = temperatureDraft || undefined;
     if (companyProfileUrl && !/^https?:\/\/[^\s]+$/i.test(companyProfileUrl)) {
       setNotice("O link da empresa deve começar com http:// ou https://.");
       return;
@@ -601,6 +659,7 @@ export function LeadDashboard({
               notes,
               companyProfileUrl,
               projectUnit,
+              temperature,
               updatedAt: occurredAt,
               history: [
                 {
@@ -631,7 +690,7 @@ export function LeadDashboard({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notes, companyProfileUrl, projectUnit }),
+          body: JSON.stringify({ notes, companyProfileUrl, projectUnit, temperature }),
         },
       );
       const data = (await response.json()) as { error?: string };
@@ -1778,6 +1837,15 @@ export function LeadDashboard({
                 Detalhes
               </button>
               <button
+                className={detailsTab === "journey" ? "active" : ""}
+                onClick={() => setDetailsTab("journey")}
+                type="button"
+              >
+                <Target size={14} />
+                Jornada
+                {siteJourney?.events.length ? <span>{siteJourney.events.length}</span> : null}
+              </button>
+              <button
                 className={detailsTab === "history" ? "active" : ""}
                 onClick={() => setDetailsTab("history")}
                 type="button"
@@ -1972,6 +2040,19 @@ export function LeadDashboard({
                       {STATUS_LABELS[selectedLead.status]}
                     </strong>
                   </div>
+                  <div className="details-temperature-row">
+                    <span>Temperatura final</span>
+                    <select
+                      aria-label="Classificação comercial final"
+                      onChange={(event) => setTemperatureDraft(event.target.value as LeadTemperature | "")}
+                      value={temperatureDraft}
+                    >
+                      <option value="">Ainda não classificado</option>
+                      <option value="cold">Frio</option>
+                      <option value="warm">Morno</option>
+                      <option value="hot">Quente</option>
+                    </select>
+                  </div>
                   <div>
                     <span>Última atualização</span>
                     <strong>{formatDate(selectedLead.updatedAt)}</strong>
@@ -2102,6 +2183,51 @@ export function LeadDashboard({
                   />
                 </label>
               </>
+            ) : detailsTab === "journey" ? (
+              <section className="site-journey-panel">
+                {loadingJourney ? (
+                  <div className="site-journey-empty"><RefreshCw className="animate-spin" size={18} /> Consultando a jornada...</div>
+                ) : siteJourney ? (
+                  <>
+                    <article className={`site-temperature-card ${siteJourney.temperature}`}>
+                      <ThermometerSun size={20} />
+                      <div>
+                        <small>RECOMENDAÇÃO AUTOMÁTICA</small>
+                        <strong>{TEMPERATURE_LABELS[siteJourney.temperature]} · {siteJourney.score}/100</strong>
+                        <p>{siteJourney.recommendation}</p>
+                      </div>
+                    </article>
+                    <p className="site-journey-disclaimer">
+                      A recomendação considera apenas o comportamento no site. A classificação final deve ser confirmada depois do atendimento.
+                    </p>
+                    <dl className="site-attribution-grid">
+                      <div><dt>Origem</dt><dd>{siteJourney.source || "Direto/Orgânico"}</dd></div>
+                      <div><dt>Campanha</dt><dd>{siteJourney.campaign || "Não informada"}</dd></div>
+                      <div><dt>Mídia</dt><dd>{siteJourney.medium || "Não informada"}</dd></div>
+                      <div><dt>Sessões</dt><dd>{siteJourney.sessions}</dd></div>
+                    </dl>
+                    {siteJourney.reasons.length > 0 && (
+                      <section className="site-reasons"><strong>Sinais considerados</strong><ul>{siteJourney.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section>
+                    )}
+                    <section className="site-event-timeline">
+                      <strong>Sequência de ações</strong>
+                      {siteJourney.events.map((event) => (
+                        <article key={event.id}>
+                          <i />
+                          <div><strong>{SITE_EVENT_LABELS[event.name]}</strong><small>{event.pageTitle || event.pageUrl}</small></div>
+                          <time>{formatDateTime(event.occurredAt)}</time>
+                        </article>
+                      ))}
+                    </section>
+                  </>
+                ) : (
+                  <div className="site-journey-empty">
+                    <Target size={22} />
+                    <strong>Este lead ainda não possui jornada vinculada</strong>
+                    <span>Novas visitas serão exibidas aqui depois que o rastreamento for publicado no site.</span>
+                  </div>
+                )}
+              </section>
             ) : (
               <section className="history-panel">
                 <div className="history-intro">

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Building2, CalendarDays, HeartPulse, LayoutDashboard, RefreshCw, Settings2, SlidersHorizontal, Users, X } from "lucide-react";
+import { BarChart3, Building2, HeartPulse, LayoutDashboard, RefreshCw, Settings2, SlidersHorizontal, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useProfilePreferences } from "@/components/use-profile-preferences";
 import type { Ga4Property, Ga4Report } from "@/types/ga4";
@@ -37,7 +37,12 @@ export function Ga4Center({ user, initial }: Props) {
     } catch (error) { setReportError(error instanceof Error ? error.message : "Não foi possível consultar o relatório."); }
     finally { setLoading(false); }
   }
-  useEffect(() => { const status = new URLSearchParams(window.location.search).get("ga4"); if (status) void refresh(); }, []);
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("ga4");
+    if (!status) return;
+    const timeout = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   return <div className="dashboard-shell google-ads-shell" data-contrast={preferences.highContrast ? "high" : "standard"} data-motion={preferences.reducedMotion ? "reduced" : "full"} data-text-size={preferences.textSize} data-theme={resolvedTheme}>
     <header className="topbar"><button className="brand-lockup" onClick={() => go("/")} type="button"><span className="brand-mark">G</span><span className="brand-copy"><strong>Global Mídia</strong><small>LEADS</small></span></button><div className="topbar-actions"><span className="mode-pill live"><span className="mode-dot" />Google Analytics</span><div className="user-badge"><span>{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div></header>

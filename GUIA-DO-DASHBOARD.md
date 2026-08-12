@@ -1,6 +1,6 @@
 # Guia do Dashboard de Leads — Global Mídia
 
-> Documento oficial de uso e evolução do sistema. Atualizado em 11/08/2026.
+> Documento oficial de uso e evolução do sistema. Atualizado em 12/08/2026.
 
 ## Como manter este guia
 
@@ -65,6 +65,31 @@ campanhas e resultados do período selecionado.
 
 Lista as propriedades disponíveis e abre relatórios com usuários, sessões,
 conversões, eventos, canais e evolução diária dentro do período escolhido.
+
+### Rastreamento dos sites
+
+O dashboard possui uma base própria para receber a jornada dos visitantes dos
+sites da Global. Ela registra página acessada, origem, campanha, UTMs, `gclid`,
+`fbclid`, tempo de permanência, profundidade de rolagem, cliques em chamadas,
+clique no WhatsApp, interação com formulários e vídeos HTML.
+
+Cada navegador recebe um identificador aleatório e cada visita recebe um
+identificador de sessão. Quando a pessoa envia um formulário com e-mail ou
+telefone, a jornada anterior daquele navegador é associada ao lead existente ou
+gera um novo lead. Não é necessário ler a conversa pessoal do WhatsApp.
+
+No popup do lead, a aba **Jornada** mostra os eventos em ordem, atribuição,
+campanha, número de sessões e uma recomendação automática de temperatura. Essa
+recomendação é apenas comportamental; a classificação final (frio, morno ou
+quente) deve ser confirmada pela equipe depois do atendimento.
+
+O coletor não armazena conteúdo digitado, texto de conversa, senha ou dados de
+cartão. Dos formulários, usa somente os dados de contato necessários para
+associar a jornada ao lead.
+
+Para ativar a coleta em um site, o script `/global-site-tracker.js` do dashboard
+deve ser instalado pelo Google Tag Manager ou diretamente no site. A variável
+`SITE_TRACKING_ALLOWED_ORIGINS` limita quais domínios podem enviar eventos.
 
 ## Painel de leads
 
@@ -201,6 +226,21 @@ Até essas funções serem implementadas, elas não devem ser apresentadas como
 recursos já disponíveis.
 
 ## Histórico de mudanças
+
+### 12/08/2026 — Jornada do site e classificação comportamental
+
+- **Adicionado:** endpoint público e protegido por origem para receber eventos
+  dos sites.
+- **Adicionado:** identificação anônima de navegador e sessão, captura de
+  atribuição e eventos de navegação, formulário, WhatsApp e vídeo.
+- **Adicionado:** associação da jornada ao lead por e-mail ou telefone e criação
+  do registro quando o formulário é enviado.
+- **Adicionado:** aba Jornada no popup, recomendação automática de temperatura,
+  classificação comercial final editável e histórico da alteração.
+- **Motivo:** identificar quais canais e comportamentos trazem oportunidades com
+  maior intenção e preparar a substituição gradual do RD Station.
+- **Limitação:** a coleta só começa depois que o script for publicado no site;
+  históricos anteriores não podem ser reconstruídos.
 
 ### 11/08/2026 — Projeto/Unidade e documentação permanente
 

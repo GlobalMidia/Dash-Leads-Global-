@@ -7,6 +7,7 @@ export const LEAD_STATUSES = [
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
+export type LeadTemperature = "cold" | "warm" | "hot";
 
 export const LEAD_PROJECT_UNITS = [
   "global",
@@ -18,7 +19,7 @@ export const LEAD_PROJECT_UNITS = [
 export type LeadProjectUnit = (typeof LEAD_PROJECT_UNITS)[number];
 
 export type LeadSource = {
-  type: "rd" | "csv" | "manual" | "meta";
+  type: "rd" | "csv" | "manual" | "meta" | "site";
   label: string;
   fileName?: string;
   importedAt?: string;
@@ -46,6 +47,7 @@ export type Lead = {
   projectUnit: LeadProjectUnit;
   enteredAt: string;
   status: LeadStatus;
+  temperature?: LeadTemperature;
   notes: string;
   updatedAt: string;
   source?: LeadSource;
